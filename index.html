@@ -350,7 +350,7 @@ let ft;function flash(t){const f=$('flash');f.textContent=t;f.classList.add('sho
 /* ---------- głos: rozpoznawanie mowy i czytanie wyniku ---------- */
 const norm=t=>t.toLowerCase().replace(/ł/g,'l').normalize('NFD').replace(/[̀-ͯ]/g,'');
 const wset=a=>new Set(a.split(' '));
-const M3=wset('triple tripel trypel tryple tripple potrojne potrojny potrojna trzykrotne treble t'),M2=wset('double dabl debel dubel podwojne podwojny podwojna d'),M1=wset('single singel singiel syngiel pojedyncze pojedynczy');
+const M3=wset('pel trzykrotny trzykrotna potrojnie triple tripel trypel tryple tripple potrojne potrojny potrojna trzykrotne treble t'),M2=wset('double dabl debel dubel podwojne podwojny podwojna d'),M1=wset('single singel singiel syngiel pojedyncze pojedynczy');
 const BULL=wset('bull bul bulls bullseye srodek srodka bula'),OUT=wset('outer zewnetrzny'),MISS=wset('zero pudlo pudla pudel miss nic');
 const NUM={jeden:1,jedynka:1,jedna:1,dwa:2,dwie:2,dwojka:2,trzy:3,trojka:3,cztery:4,czworka:4,piec:5,piatka:5,szesc:6,szostka:6,siedem:7,siodemka:7,osiem:8,osemka:8,dziewiec:9,dziewiatka:9,dziesiec:10,dziesiatka:10,
  jedenascie:11,dwanascie:12,trzynascie:13,czternascie:14,pietnascie:15,szesnascie:16,siedemnascie:17,osiemnascie:18,dziewietnascie:19,dwadziescia:20,dwiadziescia:20,dwadziesci:20,dwudziestka:20};
@@ -362,10 +362,14 @@ function splitNum(w){ // "2020" -> 20,20 ; "602019" -> 60,20,19
   return out;
 }
 function parse(text){
-  const tk=norm(text).split(/[^a-z0-9]+/).filter(Boolean),out=[];let m=0;
+  const tk=norm(text).replace(/[×*]/g,' x ').replace(/(\d)x(\d)/g,'$1 x $2').replace(/(\d)([a-z])/g,'$1 $2').replace(/\b([tds])\s+(\d)/g,'$1$2').split(/[^a-z0-9]+/).filter(Boolean),out=[];let m=0;
+  const numOf=w=>/^\d+$/.test(w)?+w:(w in NUM?NUM[w]:null);
   for(let i=0;i<tk.length;i++){
     const w=tk[i];
-    if(M3.has(w)||/^(tri|try|trp|trebl|treb|potroj|potrój|tryp|trip)/.test(w)){m=3;continue}
+    // „3 razy 20”, „trzy razy dwadzieścia” → triple; „20 razy 3” → triple
+    if((tk[i+1]==='razy'||tk[i+1]==='x')&&(numOf(w)===2||numOf(w)===3)&&numOf(tk[i+2]||'')!==null&&numOf(tk[i+2])<=20&&!(out.length&&numOf(w)<=3&&false)){m=numOf(w);i++;continue}
+    if((w==='razy'||w==='x')&&out.length&&(numOf(tk[i+1]||'')===2||numOf(tk[i+1]||'')===3)){const l=out[out.length-1];if(l.b>=1&&l.b<=20&&l.m===1){l.m=numOf(tk[i+1])}i++;continue}
+    if(M3.has(w)||/^(tri|try|trp|trebl|treb|trep|potroj|tryp|trip|trib|tryb|tripl|ripl|rypel|typel|tipel|trojn|trojk)/.test(w)){m=3;continue}
     if(M2.has(w)||/^(dub|dab|deb|dou|dubl|dabl|podwoj|debl|dobl)/.test(w)){m=2;continue}
     if(M1.has(w)||/^(sing|sying|syng|pojedyn)/.test(w)){m=1;continue}
     if(BULL.has(w)){out.push({b:25,m:2});m=0;continue}
@@ -388,6 +392,12 @@ function parse(text){
     m=0;
   }
   return out.slice(0,3);
+}
+// z kilku wersji tego, co usłyszał Google, wybierz tę z największą liczbą rzutów i mnożników (triple/double)
+function bestAlt(alts){
+  let best=alts[0],bs=-1;
+  alts.forEach((a,i)=>{const d=parse(a);const sc=d.length*10+d.filter(x=>x.m>1).length*3-i*0.1+(/(tri|try|trip|dub|dab|deb|doub|razy)/i.test(norm(a))?1:0);if(sc>bs){bs=sc;best=a}});
+  return best;
 }
 function applyDarts(darts){
   const g=S.game;if(!canThrow())return;
@@ -417,9 +427,9 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
 function micToggle(){
   if(!SR){S.heard='Ta przeglądarka nie obsługuje mikrofonu – użyj Chrome na Androidzie albo wpisz rzuty w pole.';render();return}
   if(!rec){
-    rec=new SR();rec.lang='pl-PL';rec.interimResults=false;rec.maxAlternatives=3;rec.continuous=false;
+    rec=new SR();rec.lang='pl-PL';rec.interimResults=false;rec.maxAlternatives=5;rec.continuous=false;
     rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(!e.results[i].isFinal)continue;
-      const alts=[...e.results[i]].map(a=>a.transcript);const best=alts.find(a=>parse(a).length)||alts[0];handleText(best)}};
+      const alts=[...e.results[i]].map(a=>a.transcript);handleText(bestAlt(alts))}};
     rec.onend=()=>{if(S.micOn&&!speaking)setTimeout(()=>{if(S.micOn&&!speaking)try{rec.start()}catch(e){}},150)};
     rec.onerror=e=>{if(e.error==='no-speech'||e.error==='aborted')return;
       S.heard=e.error==='not-allowed'||e.error==='service-not-allowed'?'Brak dostępu do mikrofonu. Otwórz apkę z linku GitHub w Chrome i zezwól na mikrofon.':'Błąd mikrofonu: '+e.error;
@@ -434,9 +444,9 @@ function micTest(){
   if(!SR){S.heard='<b style="color:var(--red)">Ta przeglądarka nie obsługuje mikrofonu.</b> Otwórz apkę w Chrome z linku tylkotak7.github.io/darts';render();return}
   if(S.micTest)return;
   if(rec&&S.micOn){S.micOn=false;try{rec.abort()}catch(e){}}
-  const r=new SR();r.lang='pl-PL';r.interimResults=false;r.maxAlternatives=3;r.continuous=false;let got=false;
+  const r=new SR();r.lang='pl-PL';r.interimResults=false;r.maxAlternatives=5;r.continuous=false;let got=false;
   S.micTest=true;S.heard='🎙 Słucham… powiedz 3 rzuty.';render();
-  r.onresult=e=>{got=true;const alts=[...e.results[0]].map(a=>a.transcript);const t=alts.find(a=>parse(a).length)||alts[0];const d=parse(t);
+  r.onresult=e=>{got=true;const alts=[...e.results[0]].map(a=>a.transcript);const t=bestAlt(alts);const d=parse(t);
     const lab2=x=>x.b===0?'Pudło':x.b===25?(x.m===2?'Bull':'25'):(x.m===3?'T':x.m===2?'D':'')+x.b;
     const sum=d.reduce((a,x)=>a+(x.b===25&&x.m===2?50:x.b*x.m),0);
     S.heard=d.length?`✅ Słyszę: „${esc(t)}”<br>→ <b>${d.map(lab2).join(' · ')}</b> = <b>${sum}</b>`:`⚠️ Słyszę: „${esc(t)}” – ale nie rozpoznaję rzutów. Spróbuj np. „triple dwadzieścia, dwadzieścia, zero”.`;
