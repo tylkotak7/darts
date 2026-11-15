@@ -882,7 +882,7 @@ document.addEventListener('click',e=>{
     case'tutskip':S.tut=null;LS.set('darts_tut',1);break;
     case'tut':S.tut=0;break;
     case'vtest':{const ss=window.speechSynthesis;if(!ss){S.heard='Ta przeglądarka nie umie czytać głosem';break}
-      const all=ss.getVoices();S.heard='Głosy: '+all.length+', polskie: '+all.filter(v=>/^pl/i.test(v.lang)).length;const sp=S.cfg.speak;S.cfg.speak=true;speak('Razem sto osiemdziesiąt');S.cfg.speak=sp;break}
+      const all=ss.getVoices();const pl=all.filter(v=>/^pl/i.test(v.lang)).length;S.heard='Głosy: '+all.length+', polskie: '+pl+(pl?'':'<br><b style="color:var(--red)">Brak polskiego głosu – telefon nie przeczyta wyniku.</b> Ustawienia → Zarządzanie ogólne → Język → Zamiana tekstu na mowę → Preferowany mechanizm: <b>Usługi mowy Google</b> → ⚙ → Zainstaluj dane głosowe → <b>Polski</b>. Potem zamknij i otwórz Chrome.');const sp=S.cfg.speak;S.cfg.speak=true;speak('Razem sto osiemdziesiąt');S.cfg.speak=sp;break}
     case'fbsave':{const c=parseFbConfig(S.fbText);if(!c){S.err='Nie widzę apiKey i databaseURL – wklej cały fragment firebaseConfig (z databaseURL).';break}LS.set('darts_fb',c);S.err='';S.fbText='';db=null;fbLoading=null;break}
     case'fbclear':LS.del('darts_fb');db=null;break;
     case'online':S.err='';S.screen='online';break;
