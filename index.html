@@ -322,7 +322,9 @@ function parse(text){
   const tk=norm(text).split(/[^a-z0-9]+/).filter(Boolean),out=[];let m=0;
   for(let i=0;i<tk.length;i++){
     const w=tk[i];
-    if(M3.has(w)){m=3;continue}if(M2.has(w)){m=2;continue}if(M1.has(w)){m=1;continue}
+    if(M3.has(w)||/^(tri|try|trp|trebl|treb|potroj|potrój|tryp|trip)/.test(w)){m=3;continue}
+    if(M2.has(w)||/^(dub|dab|deb|dou|dubl|dabl|podwoj|debl|dobl)/.test(w)){m=2;continue}
+    if(M1.has(w)||/^(sing|sying|syng|pojedyn)/.test(w)){m=1;continue}
     if(BULL.has(w)){out.push({b:25,m:2});m=0;continue}
     if(OUT.has(w)){out.push({b:25,m:1});m=0;continue}
     if(MISS.has(w)){out.push({b:0,m:1});m=0;continue}
