@@ -385,6 +385,21 @@ function micToggle(){
   else{try{rec.stop()}catch(e){}S.heard=''}
   render();
 }
+function micTest(){
+  if(!SR){S.heard='<b style="color:var(--red)">Ta przeglądarka nie obsługuje mikrofonu.</b> Otwórz apkę w Chrome z linku tylkotak7.github.io/darts';render();return}
+  if(S.micTest)return;
+  if(rec&&S.micOn){S.micOn=false;try{rec.abort()}catch(e){}}
+  const r=new SR();r.lang='pl-PL';r.interimResults=false;r.maxAlternatives=3;r.continuous=false;let got=false;
+  S.micTest=true;S.heard='🎙 Słucham… powiedz 3 rzuty.';render();
+  r.onresult=e=>{got=true;const alts=[...e.results[0]].map(a=>a.transcript);const t=alts.find(a=>parse(a).length)||alts[0];const d=parse(t);
+    const lab2=x=>x.b===0?'Pudło':x.b===25?(x.m===2?'Bull':'25'):(x.m===3?'T':x.m===2?'D':'')+x.b;
+    const sum=d.reduce((a,x)=>a+(x.b===25&&x.m===2?50:x.b*x.m),0);
+    S.heard=d.length?`✅ Słyszę: „${esc(t)}”<br>→ <b>${d.map(lab2).join(' · ')}</b> = <b>${sum}</b>`:`⚠️ Słyszę: „${esc(t)}” – ale nie rozpoznaję rzutów. Spróbuj np. „triple dwadzieścia, dwadzieścia, zero”.`;
+    if(d.length)speak('Razem '+sum)};
+  r.onerror=e=>{got=true;S.heard=e.error==='not-allowed'||e.error==='service-not-allowed'?'<b style="color:var(--red)">Brak dostępu do mikrofonu.</b> Stuknij 🔒 obok adresu strony → Uprawnienia → Mikrofon → Zezwól.':e.error==='no-speech'?'⚠️ Nic nie usłyszałem – mów głośniej, bliżej telefonu.':'Błąd mikrofonu: '+e.error};
+  r.onend=()=>{S.micTest=false;if(!got)S.heard='⚠️ Nic nie usłyszałem – spróbuj jeszcze raz.';render()};
+  try{r.start()}catch(e){S.micTest=false;S.heard='Błąd mikrofonu: '+e.message;render()}
+}
 let speaking=false,spkTimer=null;
 function speak(txt){
   showSaid(txt);
@@ -598,7 +613,8 @@ function vOpts(){
     <label class="lbl">Rozpoznawanie rzutów</label>
     <select data-act2="voiceMode"><option value="free" ${c.voiceMode==='free'?'selected':''}>od razu – mówisz same rzuty</option><option value="cmd" ${c.voiceMode==='cmd'?'selected':''}>dopiero po słowie „wynik”</option></select>
     <div class="toggle" data-act="speakT"><div><b>Czytaj wynik tury na głos</b><div class="mut" style="font-size:12px">„Razem 60”, „Bust”, „Wygrywa…”</div></div><div class="sw ${c.speak?'on':''}"></div></div>
-    <button class="btn full" data-act="vtest">🔊 Sprawdź głos</button>
+    <button class="btn full" data-act="vtest">🔊 Sprawdź głos (czy telefon czyta)</button>
+    <button class="btn full ${S.micTest?'alt':''}" data-act="mictest">${S.micTest?'🎙 Mów teraz… np. „triple dwadzieścia, dwadzieścia, zero”':'🎤 Sprawdź mikrofon (czy apka rozumie)'}</button>
     <button class="btn full" data-act="tut">❓ Jak to działa (samouczek)</button>
     ${S.rank.length?'<button class="btn full" data-act="clearrank">🗑 Wyczyść ranking Top 5</button>':''}
     <div class="note" style="margin-top:10px">Przykłady: „triple dwadzieścia, dwadzieścia, double szesnaście”, „t20 t20 t20”, „bull”, „dwadzieścia pięć”, „zero”. Po 3 rzutach apka czyta wynik i przechodzi do następnego gracza. „Cofnij” – cofa całą turę, „dalej” – reszta lotek to pudła. Mikrofon działa w Chrome na Androidzie, w wersji otwartej z linku GitHub.</div>
@@ -881,6 +897,7 @@ document.addEventListener('click',e=>{
     case'tutnext':if(S.tut<TUT.length-1){S.tut++;break}
     case'tutskip':S.tut=null;LS.set('darts_tut',1);break;
     case'tut':S.tut=0;break;
+    case'mictest':micTest();return;
     case'vtest':{const ss=window.speechSynthesis;if(!ss){S.heard='Ta przeglądarka nie umie czytać głosem';break}
       const all=ss.getVoices();const pl=all.filter(v=>/^pl/i.test(v.lang)).length;S.heard='Głosy: '+all.length+', polskie: '+pl+(pl?'':'<br><b style="color:var(--red)">Brak polskiego głosu – telefon nie przeczyta wyniku.</b> Ustawienia → Zarządzanie ogólne → Język → Zamiana tekstu na mowę → Preferowany mechanizm: <b>Usługi mowy Google</b> → ⚙ → Zainstaluj dane głosowe → <b>Polski</b>. Potem zamknij i otwórz Chrome.');const sp=S.cfg.speak;S.cfg.speak=true;speak('Razem sto osiemdziesiąt');S.cfg.speak=sp;break}
     case'fbsave':{const c=parseFbConfig(S.fbText);if(!c){S.err='Nie widzę apiKey i databaseURL – wklej cały fragment firebaseConfig (z databaseURL).';break}LS.set('darts_fb',c);S.err='';S.fbText='';db=null;fbLoading=null;break}
