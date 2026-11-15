@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0e1115">
+<title>Darts – licznik i statystyki</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root,body[data-t="dark"]{--bg:#0e1115;--card:#181d24;--card2:#212832;--line:#2c3540;--txt:#eef1f4;--mut:#8b96a3;--red:#e63946;--grn:#2a9d8f;--gold:#f4b942;--s:#3a4452;--sp:#2a3038}
+body[data-t="classic"]{--bg:#0a0a0a;--card:#171717;--card2:#262626;--line:#3a3a3a;--txt:#f4efe0;--mut:#a39d8c;--red:#d41f2d;--grn:#0e7c3a;--gold:#f4efe0;--s:#2e2e2e;--sp:#1f1f1f}
+body[data-t="blue"]{--bg:#12141a;--card:#1c202b;--card2:#2a2f3d;--line:#323849;--txt:#eeeeee;--mut:#8e96ab;--red:#e0344b;--grn:#2f6df6;--gold:#6ea0ff;--s:#343b4d;--sp:#262b38}
+body[data-t="light"]{--bg:#eef0f3;--card:#ffffff;--card2:#e1e5ea;--line:#cfd5dc;--txt:#111111;--mut:#5f6b78;--red:#d41f2d;--grn:#0e7c3a;--gold:#c77d00;--s:#5b6878;--sp:#46505c}
+body[data-t="neon"]{--bg:#07060f;--card:#120f24;--card2:#1d1840;--line:#3a2f7a;--txt:#e8e8ff;--mut:#9a95c9;--red:#ff2d95;--grn:#8a2be2;--gold:#00e5ff;--s:#2a1e55;--sp:#1d1840}
+body[data-t="pub"]{--bg:#1e140d;--card:#3a2616;--card2:#4a3220;--line:#6b4423;--txt:#f3e3c3;--mut:#b89a75;--red:#a3261f;--grn:#2e7d4f;--gold:#e0a526;--s:#5a3b22;--sp:#4a3220}
+body[data-t="sukno"]{--bg:#0c2a1a;--card:#14442a;--card2:#1c5636;--line:#2e7d4f;--txt:#e9f5ec;--mut:#a6cdb2;--red:#d41f2d;--grn:#2e9e5b;--gold:#f5d63d;--s:#1f5a3a;--sp:#173f29}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif}
+#app{max-width:560px;margin:0 auto;padding:12px 12px 28px}
+h1,h2,h3{font-family:Oswald,sans-serif;font-weight:700;letter-spacing:.5px;margin:0}
+h1{font-size:30px}h2{font-size:20px;margin:18px 0 10px}
+.mut{color:var(--mut)}
+button{font-family:inherit;color:var(--txt);border:0;cursor:pointer;touch-action:manipulation}
+.btn{background:var(--card2);border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px}
+.btn.pri{background:var(--red);color:#fff;font-size:18px;padding:16px;width:100%;font-family:Oswald;letter-spacing:1px}
+.btn.alt{background:var(--grn);color:#fff}
+.btn.full{width:100%;margin-top:10px}
+.btn.sm{padding:8px 12px;font-size:13px;border-radius:10px}
+.btn:active,.k:active{transform:scale(.97)}
+.btn:disabled{opacity:.4}
+.card{background:var(--card);border-radius:16px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--card2);border-radius:999px;padding:9px 16px;font-weight:600;font-size:14px}
+.chip.on{background:var(--gold);color:#111}
+label.lbl{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px}
+input.nick,input.txt,select,textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;color:var(--txt);padding:13px 14px;font-size:16px;font-family:inherit}
+input.nick{margin-bottom:8px}
+textarea{font-size:13px;min-height:110px;font-family:monospace}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-color:transparent}
+.toggle{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border-radius:12px;padding:12px 14px;margin-top:8px;cursor:pointer}
+.sw{width:48px;height:28px;border-radius:999px;background:#666;position:relative;transition:.2s;flex:0 0 48px}
+.sw::after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
+.sw.on{background:var(--grn)}.sw.on::after{left:23px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
+.top .tag{font-family:Oswald;color:var(--gold);font-size:18px}
+.info{font-size:12px;color:var(--mut);margin:-4px 0 8px}
+.players{display:grid;gap:8px;margin-bottom:10px}
+.players.n1{grid-template-columns:1fr}.players.n2,.players.n3,.players.n4{grid-template-columns:1fr 1fr}
+.pl{background:var(--card);border-radius:14px;padding:10px 12px;border:2px solid transparent;position:relative;overflow:hidden}
+.pl.cur{border-color:var(--gold);background:var(--card2)}
+.pl .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl .sc{font-family:Oswald;font-size:40px;line-height:1.05}
+.pl.cur .sc{color:var(--gold)}
+.pl .meta{font-size:11px;color:var(--mut)}
+.pl .wins{position:absolute;top:8px;right:10px;font-size:11px;color:var(--gold)}
+.turnbar{background:var(--card);border-radius:14px;padding:10px;margin-bottom:10px}
+.slots{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center}
+.slot{background:var(--card2);border-radius:10px;height:46px;display:flex;align-items:center;justify-content:center;font-family:Oswald;font-size:22px;color:var(--mut)}
+.slot.f{color:#fff;background:var(--s)}
+.tsum{font-family:Oswald;font-size:26px;min-width:56px;text-align:center}
+.hint{font-size:13px;color:var(--mut);margin-top:8px;min-height:18px}
+.hint b{color:var(--grn)}
+.mods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+.mod{padding:13px 0;border-radius:12px;background:var(--card2);font-family:Oswald;font-size:18px;letter-spacing:1px;opacity:.6}
+.mod.on{opacity:1;color:#fff}
+.mod.m1.on{background:var(--s)}.mod.m2.on{background:var(--grn)}.mod.m3.on{background:var(--red)}
+.pad{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.k{height:56px;border-radius:12px;background:var(--s);color:#fff;font-family:Oswald;font-size:22px}
+.pad.m2 .k.n{background:var(--grn)}.pad.m3 .k.n{background:var(--red)}
+.k.sp{font-size:16px;background:var(--sp)}
+.k.bull{background:#9b2430}.k.b25{background:#1d6b3a}
+.k.miss{background:#4a4a4a}.k.undo{background:#6b5530}
+.k:disabled{opacity:.25}
+.locked{opacity:.35;pointer-events:none}
+.flash{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);font-family:Oswald;font-size:56px;color:var(--red);text-shadow:0 4px 24px #000;pointer-events:none;opacity:0;transition:opacity .2s;z-index:20;white-space:nowrap}
+.flash.show{opacity:1}
+.last{font-size:12px;color:var(--mut);text-align:center;margin:8px 0 0}
+.voice{background:var(--card);border-radius:14px;padding:10px;margin-top:10px}
+.mic{width:100%;font-size:18px;padding:14px;border-radius:12px;background:var(--sp);color:#fff;font-weight:700}
+.mic.on{background:var(--red);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{opacity:.75}}
+.heard{font-size:13px;color:var(--mut);margin-top:8px;min-height:18px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px;z-index:10}
+.modal .box{background:var(--card);border-radius:18px;padding:22px;width:100%;max-width:380px;text-align:center;max-height:90vh;overflow:auto}
+.modal .box .btn{width:100%;margin-top:10px}
+.trophy{font-size:54px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 4px;text-align:center;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase}
+td:first-child,th:first-child{text-align:left}
+.tw{overflow-x:auto}
+svg.board{width:100%;height:auto;display:block}
+.bars .b{display:grid;grid-template-columns:52px 1fr 36px;gap:8px;align-items:center;margin:6px 0;font-size:14px}
+.bars .lab{font-family:Oswald;font-size:16px}
+.stack{display:flex;height:14px;border-radius:7px;overflow:hidden}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--card2);border-radius:12px;padding:10px;text-align:center}
+.kpi .v{font-family:Oswald;font-size:24px}
+.kpi .l{font-size:11px;color:var(--mut)}
+.seg{display:flex;background:var(--card2);border-radius:12px;padding:4px;gap:4px;margin-bottom:12px}
+.seg button{flex:1;background:transparent;padding:9px;border-radius:9px;font-weight:600;font-size:14px;color:var(--mut)}
+.seg button.on{background:var(--gold);color:#111}
+.empty{color:var(--mut);text-align:center;padding:30px 10px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.target{text-align:center;margin:4px 0 10px}
+.target .big{font-family:Oswald;font-size:64px;line-height:1;color:var(--gold)}
+.shpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.shpad .k{height:72px;font-size:28px}
+.shpad .k.d{background:var(--grn)}.shpad .k.t{background:var(--red)}
+.seginfo{font-size:13px;margin-top:8px;min-height:18px}
+.leg2{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;margin-top:8px}
+.code{font-family:Oswald;font-size:48px;letter-spacing:8px;color:var(--gold);text-align:center}
+.steps{font-size:14px;line-height:1.55;padding-left:20px;margin:8px 0}
+.steps li{margin-bottom:6px}
+.note{font-size:13px;color:var(--mut);line-height:1.5}
+.err{color:var(--red);font-size:14px;margin-top:8px;min-height:18px}
+</style>
+</head>
+<body data-t="dark">
+<div id="app"></div>
+<div class="flash" id="flash"></div>
+<script>
+/* =====================================================================
+   FIREBASE (gra przez internet). Wklej tu swoją konfigurację z konsoli
+   Firebase (Realtime Database) – albo wklej ją w apce: Opcje → Firebase.
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "", authDomain: "", databaseURL: "", projectId: "", appId: ""
+};
+/* ===================================================================== */
+
+const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
+const PCOL=['#f4b942','#3fa7ff','#ff4fa3','#4cd17a'];
+const THEMES=[['dark','Ciemny (domyślny)'],['classic','Klasyczna tarcza'],['blue','Ciemny niebieski'],['light','Jasny'],['neon','Neon'],['pub','Pub (drewno i złoto)'],['sukno','Sukno (zielony stół)']];
+const S={screen:'setup',prev:'setup',
+  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
+  game:null,hist:[],session:[],modal:null,statMode:'game',statPlayer:null,lastMsg:'',segInfo:null,
+  say:null,online:null,room:null,micOn:false,heard:'',txt:'',err:'',fbText:''};
+const LS={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+{const c=LS.get('darts_cfg');if(c)Object.assign(S.cfg,c)}
+{const st=LS.get('darts_state');if(st){S.session=st.session||[];if(st.game){S.saved=st}}}
+function saveCfg(){LS.set('darts_cfg',S.cfg)}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $=id=>document.getElementById(id);
+const isSh=g=>g&&g.type==='sh';
+function rgba(hex,a){const n=parseInt(hex.slice(1),16);return`rgba(${n>>16},${(n>>8)&255},${n&255},${a})`}
+function applyTheme(){document.body.dataset.t=S.cfg.theme;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.body).getPropertyValue('--bg').trim()}
+
+/* ---------- zapis / synchronizacja ---------- */
+let lastSay=null;
+function commit(){
+  if(S.online){pushRoom()}
+  else LS.set('darts_state',{game:S.game&&S.game.winner==null?S.game:null,hist:S.hist.slice(-60),session:S.session.slice(-50),last:S.lastMsg});
+  handleSay();
+}
+function handleSay(){
+  const n=S.say?S.say.n:0;
+  if(lastSay===null){lastSay=n;return}
+  if(n!==lastSay){lastSay=n;if(!S.online||S.say.p===S.online.me)speak(S.say.txt)}
+}
+function setSay(p,txt){S.say={n:(S.say?S.say.n:0)+1,p,txt}}
+
+/* ---------- logika gry ---------- */
+function newGame(keepPlayers,namesOverride){
+  const c=S.cfg;let names,type;
+  if(namesOverride){names=namesOverride;type=c.mode==='sh'?'sh':'x01'}
+  else if(keepPlayers&&S.game){names=S.game.players.map(p=>p.name);type=S.game.type}
+  else{names=c.names.slice(0,c.count).map((n,i)=>n.trim()||('Gracz '+(i+1)));type=c.mode==='sh'?'sh':'x01'}
+  const st=keepPlayers&&S.game?S.game:null;
+  const startIdx=st?(st.startIdx+1)%names.length:0;
+  S.game={type,start:st?st.start:c.start,doubleOut:st?st.doubleOut:c.doubleOut,rounds:st?st.rounds:c.rounds,round:1,
+    startIdx,cur:startIdx,mod:1,turn:[],winner:null,tie:false,shanghai:false,
+    players:names.map(n=>({name:n,score:type==='sh'?0:(st?st.start:c.start),turns:[]}))};
+  S.hist=[];S.lastMsg='';S.modal=null;S.screen='game';S.statPlayer=null;S.segInfo=null;S.saved=null;
+  commit();
+}
+function canThrow(){return S.game&&S.game.winner==null&&(!S.online||S.game.cur===S.online.me)}
+function turnSum(){return S.game.turn.reduce((a,d)=>a+d.v,0)}
+function snap(){S.hist.push(JSON.stringify({g:S.game,last:S.lastMsg}));if(S.hist.length>80)S.hist.shift()}
+function finish(){S.session.push(S.game);S.modal='win'}
+function throwDart(base,mult,noRender){
+  const g=S.game;if(!canThrow())return;
+  if(base===25&&mult===3)return;
+  snap();
+  let k,v,dbl=false;
+  if(base===0){k='M';v=0}
+  else if(base===25){if(mult===2){k='50';v=50;dbl=true}else{k='25';v=25}}
+  else{k=(mult===1?'S':mult===2?'D':'T')+base;v=base*mult;dbl=mult===2}
+  g.turn.push({k,v,dbl});g.mod=1;
+  const p=g.players[g.cur],sum=turnSum(),rem=p.score-sum;
+  if(rem<0||(g.doubleOut&&rem===1)||(rem===0&&g.doubleOut&&!dbl)){const pi=g.cur;endTurn(true);setSay(pi,'Bust.'+nextName());flash('BUST!')}
+  else if(rem===0){p.turns.push({darts:g.turn,total:sum,bust:false,co:true});p.score=0;g.turn=[];g.winner=g.cur;
+    S.lastMsg=esc(p.name)+' zamyka '+sum+'!';setSay(g.cur,'Koniec gry. Wygrywa '+p.name);finish()}
+  else if(g.turn.length===3){const pi=g.cur;endTurn(false);setSay(pi,(sum===180?'Sto osiemdziesiąt!':'Razem '+sum+'.')+nextName())}
+  commit();if(!noRender)render();
+}
+function endTurn(bust){
+  const g=S.game,p=g.players[g.cur],sum=turnSum();
+  p.turns.push({darts:g.turn,total:bust?0:sum,bust});
+  if(!bust)p.score-=sum;
+  S.lastMsg=esc(p.name)+': '+g.turn.map(d=>lab(d.k)).join(' · ')+' = '+(bust?'BUST':sum);
+  if(!bust&&sum===180)flash('180!');
+  g.turn=[];g.cur=(g.cur+1)%g.players.length;
+}
+/* Szanghaj: runda = cel; liczą się tylko trafienia w cel; S+D+T celu w jednej turze = natychmiastowa wygrana */
+function throwSh(mult,noRender){
+  const g=S.game;if(!canThrow())return;
+  snap();
+  const n=g.round,k=mult?['S','D','T'][mult-1]+n:'M',v=mult?n*mult:0;
+  g.turn.push({k,v});
+  if(g.turn.length<3){commit();if(!noRender)render();return}
+  const pi=g.cur,p=g.players[pi],sum=turnSum(),ks=g.turn.map(d=>d.k[0]);
+  const sh=ks.includes('S')&&ks.includes('D')&&ks.includes('T');
+  p.turns.push({round:n,darts:g.turn,total:sum,sh});p.score+=sum;
+  S.lastMsg=esc(p.name)+': '+g.turn.map(d=>lab(d.k)).join(' · ')+' = '+sum+(sh?' — SZANGHAJ!':'');
+  g.turn=[];
+  if(sh){g.winner=pi;g.shanghai=true;flash('SZANGHAJ!');setSay(pi,'Szanghaj! Wygrywa '+p.name);finish();commit();if(!noRender)render();return}
+  setSay(pi,'Razem '+sum+'.'+(g.players.length>1?' Teraz '+g.players[(pi+1)%g.players.length].name:''));
+  g.cur=(g.cur+1)%g.players.length;
+  if(g.cur===g.startIdx){
+    g.round++;
+    if(g.round>g.rounds){
+      g.round=g.rounds;const mx=Math.max(...g.players.map(p=>p.score));
+      const best=g.players.map((p,i)=>p.score===mx?i:-1).filter(i=>i>=0);
+      g.winner=best[0];g.tie=best.length>1;
+      setSay(pi,g.tie?'Koniec gry. Remis':'Koniec gry. Wygrywa '+g.players[best[0]].name);finish();
+    }
+  }
+  commit();if(!noRender)render();
+}
+function nextName(){const g=S.game;return g.players.length>1?' Teraz '+g.players[g.cur].name:''}
+/* cofnij całą turę: bieżącą (jeśli zaczęta) albo poprzednią */
+function undoTurn(){
+  if(!S.hist.length){S.heard='Nie ma czego cofać.';render();return}
+  if(S.game.winner!=null)S.session.pop();
+  let h;do{h=JSON.parse(S.hist.pop());S.game=h.g;S.lastMsg=h.last}while(S.hist.length&&S.game.turn.length>0);
+  S.modal=null;const p=S.game.players[S.game.cur];
+  S.heard='↶ Cofnięto turę – <b>'+esc(p.name)+'</b>, podaj wynik jeszcze raz.';
+  setSay(S.game.cur,'Cofnięte. '+p.name+', podaj wynik jeszcze raz');commit();render();
+}
+function skip(){
+  const g=S.game;if(!g.turn.length||!canThrow())return;
+  const c=g.cur;
+  while(g.turn.length&&g.cur===c&&g.winner==null){isSh(g)?throwSh(0,true):throwDart(0,1,true)}
+  render();
+}
+function undo(){
+  if(!S.hist.length)return;
+  if(S.game.winner!=null)S.session.pop();
+  const h=JSON.parse(S.hist.pop());S.game=h.g;S.lastMsg=h.last;S.modal=null;commit();render();
+}
+function lab(k){if(k==='M')return'Pudło';if(k==='50')return'Bull';if(k==='25')return'25';if(k[0]==='S')return k.slice(1);return k}
+let ft;function flash(t){const f=$('flash');f.textContent=t;f.classList.add('show');clearTimeout(ft);ft=setTimeout(()=>f.classList.remove('show'),1000)}
+
+/* ---------- głos: rozpoznawanie mowy i czytanie wyniku ---------- */
+const norm=t=>t.toLowerCase().replace(/ł/g,'l').normalize('NFD').replace(/[̀-ͯ]/g,'');
+const wset=a=>new Set(a.split(' '));
+const M3=wset('triple tripel trypel tryple tripple potrojne potrojny potrojna trzykrotne treble t'),M2=wset('double dabl debel dubel podwojne podwojny podwojna d'),M1=wset('single singel singiel syngiel pojedyncze pojedynczy');
+const BULL=wset('bull bul bulls bullseye srodek srodka bula'),OUT=wset('outer zewnetrzny'),MISS=wset('zero pudlo pudla pudel miss nic');
+const NUM={jeden:1,jedynka:1,jedna:1,dwa:2,dwie:2,dwojka:2,trzy:3,trojka:3,cztery:4,czworka:4,piec:5,piatka:5,szesc:6,szostka:6,siedem:7,siodemka:7,osiem:8,osemka:8,dziewiec:9,dziewiatka:9,dziesiec:10,dziesiatka:10,
+ jedenascie:11,dwanascie:12,trzynascie:13,czternascie:14,pietnascie:15,szesnascie:16,siedemnascie:17,osiemnascie:18,dziewietnascie:19,dwadziescia:20,dwiadziescia:20,dwadziesci:20,dwudziestka:20};
+function parse(text){
+  const tk=norm(text).split(/[^a-z0-9]+/).filter(Boolean),out=[];let m=0;
+  for(let i=0;i<tk.length;i++){
+    const w=tk[i];
+    if(M3.has(w)){m=3;continue}if(M2.has(w)){m=2;continue}if(M1.has(w)){m=1;continue}
+    if(BULL.has(w)){out.push({b:25,m:2});m=0;continue}
+    if(OUT.has(w)){out.push({b:25,m:1});m=0;continue}
+    if(MISS.has(w)){out.push({b:0,m:1});m=0;continue}
+    let k=null,mu=m||1;const mm=w.match(/^([tds])(\d+)$/);
+    if(mm){mu={t:3,d:2,s:1}[mm[1]];k=+mm[2]}
+    else if(/^\d+$/.test(w))k=+w;
+    else if(w in NUM)k=NUM[w];
+    if(k===null)continue;
+    if(k===20&&!mm&&(tk[i+1]==='piec'||tk[i+1]==='5')){k=25;i++}
+    if(k===50){out.push({b:25,m:2});m=0;continue}
+    if(k===25){out.push({b:25,m:mu===2?2:1});m=0;continue}
+    if(k===0){out.push({b:0,m:1});m=0;continue}
+    if(k>=1&&k<=20)out.push({b:k,m:mu});
+    m=0;
+  }
+  return out.slice(0,3);
+}
+function applyDarts(darts){
+  const g=S.game;if(!canThrow())return;
+  const c=g.cur;
+  for(const d of darts){
+    if(S.game.cur!==c||S.game.winner!=null)break;
+    if(isSh(S.game))throwSh(d.b===S.game.round&&d.b!==25?d.m:0,true);
+    else throwDart(d.b,d.m,true);
+  }
+  render();
+}
+let mute=false;
+function handleText(t,typed){
+  if(!typed&&mute)return;
+  const nt=norm(t);
+  if(S.screen==='game'&&S.game&&/\b(cofn|cofa|popraw|blad|zle)/.test(nt)){S.heard='Słyszę: „'+esc(t.trim())+'”';undoTurn();return}
+  if(S.screen==='game'&&S.game&&/\b(dalej|nastepny|koniec tury)\b/.test(nt)&&!parse(t).length){S.heard='Słyszę: „'+esc(t.trim())+'” → reszta lotek to pudła';skip();return}
+  if(!typed&&S.cfg.voiceMode==='cmd'){const n=norm(t),i=n.indexOf('wynik');if(i<0)return;t=n.slice(i+5)}
+  if(S.screen!=='game'||!S.game){return}
+  const d=parse(t);
+  S.heard='Słyszę: „'+esc(t.trim())+'”'+(d.length?' → '+d.map(x=>x.b===0?'Pudło':x.b===25?(x.m===2?'Bull':'25'):(x.m===3?'T':x.m===2?'D':'')+x.b).join(' · '):' – nie rozumiem, powtórz');
+  if(!d.length){render();return}
+  if(!canThrow()){S.heard+=' (teraz nie Twoja kolej)';render();return}
+  applyDarts(d);
+}
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
+function micToggle(){
+  if(!SR){S.heard='Ta przeglądarka nie obsługuje mikrofonu – użyj Chrome na Androidzie albo wpisz rzuty w pole.';render();return}
+  if(!rec){
+    rec=new SR();rec.lang='pl-PL';rec.interimResults=false;rec.maxAlternatives=3;rec.continuous=true;
+    rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(!e.results[i].isFinal)continue;
+      const alts=[...e.results[i]].map(a=>a.transcript);const best=alts.find(a=>parse(a).length)||alts[0];handleText(best)}};
+    rec.onend=()=>{if(S.micOn)try{rec.start()}catch(e){}};
+    rec.onerror=e=>{if(e.error==='no-speech'||e.error==='aborted')return;
+      S.heard=e.error==='not-allowed'||e.error==='service-not-allowed'?'Brak dostępu do mikrofonu. Otwórz apkę z linku GitHub w Chrome i zezwól na mikrofon.':'Błąd mikrofonu: '+e.error;
+      if(e.error==='not-allowed'||e.error==='service-not-allowed')S.micOn=false;render()};
+  }
+  S.micOn=!S.micOn;
+  if(S.micOn){try{rec.start()}catch(e){}S.heard=S.cfg.voiceMode==='cmd'?'Słucham… powiedz np. „wynik triple dwadzieścia, dwadzieścia, double szesnaście”':'Słucham… powiedz 3 rzuty, np. „triple dwadzieścia, dwadzieścia, zero”. Pomyłka? Powiedz „cofnij”.'}
+  else{try{rec.stop()}catch(e){}S.heard=''}
+  render();
+}
+function speak(txt){
+  if(!S.cfg.speak)return;const ss=window.speechSynthesis;if(!ss)return;
+  const u=new SpeechSynthesisUtterance(txt);u.lang='pl-PL';
+  const v=ss.getVoices().find(v=>/^pl/i.test(v.lang));if(v)u.voice=v;
+  const done=()=>setTimeout(()=>{mute=false},700);
+  u.onend=done;u.onerror=done;mute=true;setTimeout(done,6000);
+  try{ss.cancel();setTimeout(()=>ss.speak(u),80)}catch(e){}
+}
+
+/* ---------- podpowiedź zakończenia (501) ---------- */
+const ALL=[];for(let n=20;n>=1;n--)ALL.push({k:'T'+n,v:n*3});
+ALL.push({k:'50',v:50},{k:'25',v:25});
+for(let n=20;n>=1;n--)ALL.push({k:'S'+n,v:n});
+for(let n=20;n>=1;n--)ALL.push({k:'D'+n,v:n*2});
+const DBL=[...Array(20)].map((_,i)=>({k:'D'+(20-i),v:(20-i)*2})).concat([{k:'50',v:50}]);
+const coCache={};
+function checkout(r,n,dout){
+  const key=r+'_'+n+'_'+dout;if(key in coCache)return coCache[key];
+  let res=null;const fin=dout?DBL:ALL;
+  if(r>=2||(!dout&&r>=1)){
+    for(const f of fin)if(f.v===r){res=[f];break}
+    if(!res&&n>=2)o2:for(const a of ALL)for(const f of fin)if(a.v+f.v===r){res=[a,f];break o2}
+    if(!res&&n>=3)o3:for(const a of ALL)for(const b of ALL)for(const f of fin)if(a.v+b.v+f.v===r){res=[a,b,f];break o3}
+  }
+  return coCache[key]=res;
+}
+
+/* ---------- gra przez internet (Firebase Realtime Database) ---------- */
+function fbConfig(){if(FIREBASE_CONFIG.apiKey)return FIREBASE_CONFIG;const c=LS.get('darts_fb');return c&&c.apiKey?c:null}
+let db=null,fbLoading=null,roomRef=null,testDB=false;
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Nie udało się wczytać '+src));document.head.append(s)})}
+function getDB(){
+  if(db)return Promise.resolve(db);
+  if(testDB){db=makeFakeDB();return Promise.resolve(db)}
+  const cfg=fbConfig();if(!cfg)return Promise.reject(new Error('Brak konfiguracji Firebase'));
+  if(!fbLoading)fbLoading=loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js')
+    .then(()=>loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js'))
+    .then(()=>{firebase.initializeApp(cfg);db=firebase.database();return db})
+    .catch(e=>{fbLoading=null;throw e});
+  return fbLoading;
+}
+function makeFakeDB(){ // atrapa do testów – dane tylko w tej karcie
+  const root={},subs=[];
+  const get=p=>p.split('/').reduce((o,k)=>o==null?undefined:o[k],root);
+  const put=(p,v)=>{const k=p.split('/'),last=k.pop();let o=root;for(const x of k){if(typeof o[x]!=='object'||o[x]===null)o[x]={};o=o[x]}o[last]=JSON.parse(JSON.stringify(v));subs.forEach(f=>f())};
+  return{ref:p=>({key:p.split('/').pop(),set:v=>{put(p,v);return Promise.resolve()},
+    once:()=>{const v=get(p);return Promise.resolve({exists:()=>v!=null,val:()=>v})},
+    on:(_,cb)=>{const f=()=>{const v=get(p);cb({val:()=>v==null?null:JSON.parse(JSON.stringify(v))})};subs.push(f);f()},off:()=>{}})};
+}
+function roomPayload(){return{d:JSON.stringify({room:S.room,game:S.game,hist:S.hist.slice(-40),session:S.session.slice(-30),last:S.lastMsg,say:S.say}),t:Date.now()}}
+function pushRoom(){if(roomRef)roomRef.set(roomPayload()).catch(e=>{S.err='Błąd zapisu: '+e.message;render()})}
+function genCode(){const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789';return Array.from({length:5},()=>A[Math.random()*A.length|0]).join('')}
+async function createRoom(){
+  const name=(S.cfg.myName||'').trim()||'Gracz 1';S.err='';
+  try{
+    const d=await getDB();const code=genCode();
+    S.room={phase:'lobby',names:[name],cfg:{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds}};
+    S.game=null;S.hist=[];S.session=[];S.lastMsg='';S.say=null;
+    S.online={code,me:0};roomRef=d.ref('rooms/'+code);await roomRef.set(roomPayload());listen();
+  }catch(e){S.err=e.message;render()}
+}
+async function joinRoom(code){
+  code=(code||'').trim().toUpperCase();if(!code){S.err='Wpisz kod pokoju';render();return}
+  const name=(S.cfg.myName||'').trim()||'Gracz';S.err='';
+  try{
+    const d=await getDB();const ref=d.ref('rooms/'+code);const sn=await ref.once('value');
+    if(!sn.exists()){S.err='Nie ma takiego pokoju: '+code;render();return}
+    const st=JSON.parse(sn.val().d);let me=st.room.names.indexOf(name);
+    if(me<0){
+      if(st.room.phase!=='lobby'){S.err='Gra w tym pokoju już trwa – dołącz tym samym nickiem, jakim grałeś.';render();return}
+      if(st.room.names.length>=4){S.err='Pokój jest pełny (4 graczy).';render();return}
+      st.room.names.push(name);me=st.room.names.length-1;await ref.set({d:JSON.stringify(st),t:Date.now()});
+    }
+    S.online={code,me};roomRef=ref;listen();
+  }catch(e){S.err=e.message;render()}
+}
+function listen(){
+  LS.set('darts_room',{code:S.online.code,me:S.online.me,test:testDB});
+  lastSay=null;
+  roomRef.on('value',sn=>{
+    const v=sn.val();if(!v||!S.online)return;const st=JSON.parse(v.d);
+    S.room=st.room;S.game=st.game;S.hist=st.hist||[];S.session=st.session||[];S.lastMsg=st.last||'';S.say=st.say;
+    if(S.room.cfg)Object.assign(S.cfg,{mode:S.room.cfg.mode});
+    if(S.room.phase==='game'&&S.game){if(S.screen==='lobby'||S.screen==='online')S.screen='game';S.modal=S.game.winner!=null&&S.screen==='game'?'win':(S.modal==='win'?null:S.modal)}
+    else if(S.room.phase==='lobby'&&S.screen!=='opts')S.screen='lobby';
+    handleSay();render();
+  });
+}
+function startOnline(){
+  Object.assign(S.cfg,S.room.cfg);S.room.phase='game';newGame(false,S.room.names.slice());
+}
+function leaveRoom(){
+  if(roomRef&&roomRef.off)try{roomRef.off()}catch(e){}
+  roomRef=null;S.online=null;S.room=null;S.game=null;S.hist=[];S.modal=null;LS.del('darts_room');
+  const st=LS.get('darts_state');S.session=st&&st.session||[];S.screen='setup';render();
+}
+function parseFbConfig(txt){
+  const out={};['apiKey','authDomain','databaseURL','projectId','appId','storageBucket','messagingSenderId'].forEach(k=>{
+    const m=txt.match(new RegExp('["\']?'+k+'["\']?\\s*:\\s*["\']([^"\']+)["\']'));if(m)out[k]=m[1]});
+  return out.apiKey&&out.databaseURL?out:null;
+}
+
+/* ---------- statystyki ---------- */
+function curType(){return S.game?S.game.type:(S.cfg.mode==='sh'?'sh':'x01')}
+function gamesFor(mode){
+  if(mode==='game')return S.game?[S.game]:[];
+  const t=curType();const l=S.session.filter(g=>g.type===t);
+  if(S.game&&S.game.winner==null&&S.game.type===t)l.push(S.game);return l;
+}
+function winsMap(){const w={},t=curType();S.session.forEach(x=>{if(x.type===t&&x.winner!=null&&!x.tie){const n=x.players[x.winner].name;w[n]=(w[n]||0)+1}});return w}
+function stats(games,name){
+  const s={hits:{},darts:0,scored:0,turns:0,best:0,n180:0,n140:0,n100:0,bust:0,wins:0,coHigh:0,legs:0,sh:0,hit:0};
+  for(const g of games)g.players.forEach((p,i)=>{
+    if(name&&p.name!==name)return;
+    s.legs++;if(g.winner===i&&!g.tie)s.wins++;
+    for(const t of p.turns){
+      s.turns++;s.darts+=t.darts.length;s.scored+=t.total;if(t.bust)s.bust++;if(t.sh)s.sh++;
+      if(t.total>s.best)s.best=t.total;
+      if(t.total===180)s.n180++;else if(t.total>=140)s.n140++;else if(t.total>=100)s.n100++;
+      if(t.co&&t.total>s.coHigh)s.coHigh=t.total;
+      for(const d of t.darts){s.hits[d.k]=(s.hits[d.k]||0)+1;if(d.k!=='M')s.hit++}
+    }
+  });
+  s.avg=s.darts?s.scored/s.darts*3:0;s.hitPct=s.darts?Math.round(s.hit/s.darts*100):0;return s;
+}
+/* tarcza: każdy gracz ma swój kolor, pole dzielone na paski – po jednym na gracza */
+function boardSVG(sets,sel){
+  const C=200,N=sets.length;let max=1;
+  sets.forEach(s=>Object.entries(s.hits).forEach(([k,v])=>{if(k!=='M'&&v>max)max=v}));
+  const al=c=>.22+.78*c/max;
+  const P=(r,a)=>{const t=(a-90)*Math.PI/180;return[(C+r*Math.cos(t)).toFixed(2),(C+r*Math.sin(t)).toFixed(2)]};
+  const arc=(r1,r2,a1,a2)=>{const lg=a2-a1>180?1:0;const[x1,y1]=P(r2,a1),[x2,y2]=P(r2,a2),[x3,y3]=P(r1,a2),[x4,y4]=P(r1,a1);
+    return`M${x1},${y1}A${r2},${r2} 0 ${lg} 1 ${x2},${y2}L${x3},${y3}`+(r1>0?`A${r1},${r1} 0 ${lg} 0 ${x4},${y4}`:'')+'Z'};
+  const ring=(r1,r2)=>`M${C-r2},${C}a${r2},${r2} 0 1,0 ${2*r2},0a${r2},${r2} 0 1,0 ${-2*r2},0Z`+(r1>0?`M${C-r1},${C}a${r1},${r1} 0 1,1 ${2*r1},0a${r1},${r1} 0 1,1 ${-2*r1},0Z`:'');
+  const T=(x,y,t,fs)=>`<text x="${x}" y="${y}" font-size="${fs}" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central" style="paint-order:stroke;pointer-events:none" stroke="#000" stroke-width="2.5">${t}</text>`;
+  let base=`<circle cx="${C}" cy="${C}" r="196" fill="#0b0d10"/>`,hot='',txt='',nums='',outl='';
+  const seg=k=>`data-act="seg" data-v="${k}"`;
+  ORDER.forEach((n,i)=>{
+    const a1=i*18-9,dk=i%2===0,w=18/N;
+    [['S',16,95],['T',95,105],['S',105,160],['D',160,170]].forEach(([m,r1,r2])=>{
+      const k=m+n,ringc=m!=='S';
+      const col=ringc?(dk?'#3a2a2d':'#27352c'):(dk?'#22272e':'#2c323a');
+      base+=`<path ${seg(k)} d="${arc(r1,r2,a1,a1+18)}" fill="${col}" stroke="#0b0d10" stroke-width="1"/>`;
+      sets.forEach((s,j)=>{const c=s.hits[k]||0;if(c)hot+=`<path ${seg(k)} d="${arc(r1,r2,a1+j*w,a1+(j+1)*w)}" fill="${rgba(s.color,al(c))}"/>`});
+      if(sel===k)outl+=`<path d="${arc(r1,r2,a1,a1+18)}" fill="none" stroke="#fff" stroke-width="2.5" pointer-events="none"/>`;
+    });
+    if(N===1){[['S',132,13],['T',100,10],['D',165,10]].forEach(([m,r,fs])=>{const c=sets[0].hits[m+n]||0;if(!c)return;const[x,y]=P(r,a1+9);txt+=T(x,y,c,fs)})}
+    else sets.forEach((s,j)=>{const c=s.hits['S'+n]||0;if(!c)return;const[x,y]=P(135,a1+(j+.5)*w);txt+=T(x,y,c,N>2?8:10)});
+    const[x,y]=P(184,a1+9);nums+=`<text x="${x}" y="${y}" font-size="15" font-family="Oswald" fill="#cfd6de" text-anchor="middle" dominant-baseline="central" pointer-events="none">${n}</text>`;
+  });
+  base+=`<path ${seg('25')} d="${ring(7,16)}" fill-rule="evenodd" fill="#27352c" stroke="#0b0d10"/><circle ${seg('50')} cx="${C}" cy="${C}" r="7" fill="#3a2a2d" stroke="#0b0d10"/>`;
+  sets.forEach((s,j)=>{
+    const c25=s.hits['25']||0,c50=s.hits['50']||0,w=360/N;
+    if(c25)hot+=`<path ${seg('25')} fill-rule="evenodd" d="${N===1?ring(7,16):arc(7,16,j*w,(j+1)*w)}" fill="${rgba(s.color,al(c25))}"/>`;
+    if(c50)hot+=`<path ${seg('50')} d="${N===1?ring(0,7):arc(0,7,j*w,(j+1)*w)}" fill="${rgba(s.color,al(c50))}"/>`;
+  });
+  if(N===1){const c25=sets[0].hits['25']||0,c50=sets[0].hits['50']||0;if(c25)txt+=T(C,C-11.5,c25,8);if(c50)txt+=T(C,C,c50,8)}
+  if(sel==='25')outl+=`<path d="${ring(7,16)}" fill="none" stroke="#fff" stroke-width="2" pointer-events="none"/>`;
+  if(sel==='50')outl+=`<circle cx="${C}" cy="${C}" r="7" fill="none" stroke="#fff" stroke-width="2" pointer-events="none"/>`;
+  return`<svg class="board" viewBox="0 0 400 400">${base}${hot}${outl}${txt}${nums}</svg>`;
+}
+
+/* ---------- widoki ---------- */
+function modeSettings(c){
+  const sh=c.mode==='sh';
+  return`<label class="lbl" style="margin-top:0">Gra</label>
+    <div class="seg" style="margin:0"><button class="${!sh?'on':''}" data-act="mode" data-v="x01">501 (odliczanie)</button><button class="${sh?'on':''}" data-act="mode" data-v="sh">Szanghaj</button></div>
+    ${sh?`<label class="lbl">Liczba rund</label>
+    <div class="chips">${[7,10,20].map(n=>`<button class="chip ${c.rounds===n?'on':''}" data-act="rounds" data-v="${n}">${n} (1–${n})</button>`).join('')}</div>
+    <div class="note" style="margin-top:12px">W rundzie 1 rzucacie w 1, w rundzie 2 w 2 itd. Liczą się tylko trafienia w cel: single ×1, double ×2, triple ×3. <b style="color:var(--txt)">Szanghaj</b> (single + double + triple celu w jednej turze) = natychmiastowa wygrana.</div>`
+    :`<label class="lbl">Start od</label>
+    <div class="chips">${[301,501,701].map(n=>`<button class="chip ${c.start===n?'on':''}" data-act="start" data-v="${n}">${n}</button>`).join('')}</div>
+    <div class="toggle" data-act="dout"><div><b>Double Out</b><div class="mut" style="font-size:12px">kończenie na podwójnym lub Bull</div></div><div class="sw ${c.doubleOut?'on':''}"></div></div>`}`;
+}
+function vSetup(){
+  const c=S.cfg,sv=S.saved&&S.saved.game;
+  return`<div class="top"><h1>🎯 DARTS</h1><button class="btn sm" data-act="opts">⚙ Opcje</button></div>
+  ${sv?`<button class="btn alt full" style="margin:0 0 12px" data-act="resume">▶ Kontynuuj grę: ${sv.players.map(p=>esc(p.name)).join(', ')}</button>`:''}
+  <div class="card">${modeSettings(c)}
+    <label class="lbl">Liczba graczy (na tym telefonie)</label>
+    <div class="chips">${[1,2,3,4].map(n=>`<button class="chip ${c.count===n?'on':''}" data-act="count" data-v="${n}">${n}</button>`).join('')}</div>
+    <label class="lbl">Nicki</label>
+    ${[...Array(c.count)].map((_,i)=>`<div class="row"><span class="dot" style="background:${PCOL[i]};width:14px;height:14px;margin:0 2px 8px 0"></span><input class="nick" data-i="${i}" maxlength="16" placeholder="Gracz ${i+1}" value="${esc(c.names[i]||'')}"></div>`).join('')}
+  </div>
+  <button class="btn pri" data-act="go">ZACZYNAMY</button>
+  <button class="btn full" data-act="online">🌐 Gra przez internet (każdy na swoim telefonie)</button>
+  ${S.session.length?`<button class="btn full" data-act="stats">📊 Statystyki sesji</button>`:''}`;
+}
+function vOpts(){
+  const c=S.cfg,fb=fbConfig();
+  return`<div class="top"><h1>⚙ Opcje</h1><button class="btn sm" data-act="optsback">Gotowe</button></div>
+  <div class="card"><label class="lbl" style="margin-top:0">Wygląd</label>
+    <select data-act2="theme">${THEMES.map(([v,l])=>`<option value="${v}" ${c.theme===v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="card"><h3>🎤 Głos</h3>
+    <label class="lbl">Rozpoznawanie rzutów</label>
+    <select data-act2="voiceMode"><option value="free" ${c.voiceMode==='free'?'selected':''}>od razu – mówisz same rzuty</option><option value="cmd" ${c.voiceMode==='cmd'?'selected':''}>dopiero po słowie „wynik”</option></select>
+    <div class="toggle" data-act="speakT"><div><b>Czytaj wynik tury na głos</b><div class="mut" style="font-size:12px">„Razem 60”, „Bust”, „Wygrywa…”</div></div><div class="sw ${c.speak?'on':''}"></div></div>
+    <button class="btn full" data-act="vtest">🔊 Sprawdź głos</button>
+    <button class="btn full" data-act="tut">❓ Jak to działa (samouczek)</button>
+    <div class="note" style="margin-top:10px">Przykłady: „triple dwadzieścia, dwadzieścia, double szesnaście”, „t20 t20 t20”, „bull”, „dwadzieścia pięć”, „zero”. Po 3 rzutach apka czyta wynik i przechodzi do następnego gracza. „Cofnij” – cofa całą turę, „dalej” – reszta lotek to pudła. Mikrofon działa w Chrome na Androidzie, w wersji otwartej z linku GitHub.</div>
+    <div class="heard">${S.heard||''}</div></div>
+  <div class="card"><h3>🌐 Firebase (gra przez internet)</h3>
+    <div class="note" style="margin:8px 0">${fb?`✅ Skonfigurowane: <b style="color:var(--txt)">${esc(fb.projectId||fb.databaseURL)}</b>`:'Nie skonfigurowane. Wklej poniżej fragment <b>firebaseConfig</b> z konsoli Firebase.'}</div>
+    ${FIREBASE_CONFIG.apiKey?'':`<textarea data-act2="fbText" placeholder='const firebaseConfig = {
+  apiKey: "...",
+  authDomain: "...",
+  databaseURL: "https://...firebasedatabase.app",
+  projectId: "...",
+  appId: "..."
+};'>${esc(S.fbText)}</textarea>
+    <div class="row" style="margin-top:8px"><button class="btn alt" style="flex:1" data-act="fbsave">Zapisz</button>${fb?`<button class="btn" data-act="fbclear">Usuń</button>`:''}</div>`}
+    <div class="err">${S.err||''}</div></div>`;
+}
+function vOnline(){
+  const fb=fbConfig()||testDB;
+  if(!fb)return`<div class="top"><h1>🌐 Online</h1><button class="btn sm" data-act="home">Wróć</button></div>
+  <div class="card"><h3>Najpierw Firebase (raz, ok. 5 minut)</h3>
+  <ol class="steps"><li>Wejdź na <b>console.firebase.google.com</b> i kliknij <b>Utwórz projekt</b> (np. „darts”). Analytics możesz wyłączyć.</li>
+  <li>W menu po lewej: <b>Kompilacja → Realtime Database → Utwórz bazę danych</b>, lokalizacja <b>europe-west1</b>, wybierz <b>tryb testowy</b>.</li>
+  <li>Wróć na stronę główną projektu, kliknij ikonę <b>&lt;/&gt;</b> (aplikacja internetowa), wpisz dowolną nazwę i <b>Zarejestruj</b>.</li>
+  <li>Skopiuj cały fragment <b>firebaseConfig = { … }</b> i wklej go w <b>Opcje → Firebase</b> (albo wyślij go Claude'owi, to wpisze go na stałe w apkę na GitHubie).</li></ol>
+  <div class="note">Tryb testowy bazy działa 30 dni – potem w zakładce <b>Reguły</b> ustaw <code>".read": true, ".write": true</code>.</div>
+  <button class="btn alt full" data-act="opts">Przejdź do Opcji</button>
+  <button class="btn full" data-act="testdb">🧪 Wypróbuj na niby (tylko na tym telefonie)</button></div>`;
+  return`<div class="top"><h1>🌐 Online</h1><button class="btn sm" data-act="home">Wróć</button></div>
+  ${testDB?'<div class="card note">🧪 Tryb testowy – pokój istnieje tylko w tej karcie.</div>':''}
+  <div class="card"><label class="lbl" style="margin-top:0">Twój nick</label>
+    <input class="nick" data-act2="myName" maxlength="16" placeholder="Twój nick" value="${esc(S.cfg.myName||'')}">
+  </div>
+  <div class="card"><h3>Utwórz pokój</h3><div style="margin-top:10px">${modeSettings(S.cfg)}</div>
+    <button class="btn pri" style="margin-top:14px" data-act="create">UTWÓRZ POKÓJ</button></div>
+  <div class="card"><h3>Dołącz do pokoju</h3>
+    <div class="row" style="margin-top:10px"><input class="nick" id="joincode" maxlength="5" placeholder="KOD" style="text-transform:uppercase;margin:0;flex:1"><button class="btn alt" data-act="join">Dołącz</button></div></div>
+  <div class="err">${S.err||''}</div>`;
+}
+function vLobby(){
+  const r=S.room,host=S.online.me===0;
+  return`<div class="top"><h1>🌐 Pokój</h1><button class="btn sm" data-act="leave">Wyjdź</button></div>
+  <div class="card" style="text-align:center"><div class="mut">Kod pokoju – podaj znajomym</div><div class="code">${S.online.code}</div>
+  <div class="mut" style="font-size:13px">${r.cfg.mode==='sh'?'Szanghaj · '+r.cfg.rounds+' rund':r.cfg.start+' · '+(r.cfg.doubleOut?'Double Out':'Single Out')}</div></div>
+  <div class="card"><h3>Gracze (${r.names.length}/4)</h3>
+  ${r.names.map((n,i)=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="dot" style="background:${PCOL[i]}"></span><b>${esc(n)}</b>${i===S.online.me?' <span class="mut">(Ty)</span>':''}${i===0?' <span class="mut">· gospodarz</span>':''}</div>`).join('')}</div>
+  ${host?`<button class="btn pri" data-act="ostart">START GRY</button>`:'<div class="card note" style="text-align:center">Czekamy, aż gospodarz wystartuje grę…</div>'}`;
+}
+function cards(g,showFn,metaFn){
+  const wins=winsMap();
+  return`<div class="players n${g.players.length}">`+g.players.map((p,i)=>`<div class="pl ${i===g.cur&&g.winner==null?'cur':''}">${wins[p.name]?`<span class="wins">🏆 ${wins[p.name]}</span>`:''}
+      <div class="nm"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}${S.online&&i===S.online.me?' <span class="mut">(Ty)</span>':''}</div><div class="sc">${showFn(p,i)}</div>
+      <div class="meta">${metaFn(p,i)}</div></div>`).join('')+`</div>`;
+}
+function vGame(){
+  const g=S.game;const lock=!canThrow()&&g.winner==null;
+  return(isSh(g)?vGameSh(lock):vGameX(lock))+
+  `<div class="voice"><button class="mic ${S.micOn?'on':''}" data-act="mic">${S.micOn?'🎙 Słucham… (dotknij, by wyłączyć)':'🎤 Mów rzuty'}</button>
+   <div class="row" style="margin-top:8px"><input class="txt" id="txt" data-act2="txt" placeholder="albo wpisz: t20 20 d16" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
+   <div class="heard">${S.heard||''}</div></div>`+
+  (S.lastMsg?`<div class="last">Ostatnio: ${S.lastMsg}</div>`:'')+(S.modal==='win'?vWin():'')+(S.modal==='menu'?vMenu():'');
+}
+function topBar(tag){return`<div class="top"><span class="tag">${tag}</span>
+    <div class="row"><button class="btn sm" data-act="stats">📊</button><button class="btn sm" data-act="menu">☰</button></div></div>
+    ${S.online?`<div class="info">Pokój ${S.online.code} · grasz jako <b>${esc(S.room.names[S.online.me]||'')}</b>${testDB?' · 🧪 test':''}</div>`:''}`}
+function slotsHtml(g,sum,hint){
+  const slots=[0,1,2].map(i=>{const d=g.turn[i];return`<div class="slot ${d?'f':''}">${d?lab(d.k):'–'}</div>`}).join('');
+  return`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div></div>`;
+}
+function whoHint(cur,lock){return lock?'Rzuca <b style="color:var(--gold)">'+esc(cur.name)+'</b> – czekaj na swoją kolej':'Rzuca <b style="color:var(--gold)">'+esc(cur.name)+'</b>'}
+function vGameX(lock){
+  const g=S.game,cur=g.players[g.cur],sum=turnSum(),rem=cur.score-sum;
+  const left=3-g.turn.length,co=rem<=170?checkout(rem,left,g.doubleOut):null;
+  const hint=co?`${lock?esc(cur.name)+' – ':''}Zamknięcie: <b>${co.map(d=>lab(d.k)).join(' · ')}</b>`:whoHint(cur,lock);
+  const m=g.mod,keys=[];for(let i=1;i<=20;i++)keys.push(`<button class="k n" data-act="n" data-v="${i}">${i}</button>`);
+  return topBar(`${g.start} · ${g.doubleOut?'Double Out':'Single Out'}`)+
+  cards(g,(p,i)=>i===g.cur?p.score-sum:p.score,(p,i)=>{const st=stats([g],p.name);return`śr. ${st.avg.toFixed(1)} · lotki ${st.darts+(i===g.cur?g.turn.length:0)}`})+
+  slotsHtml(g,sum,hint)+
+  `<div class="${lock?'locked':''}"><div class="mods">
+    <button class="mod m1 ${m===1?'on':''}" data-act="mod" data-v="1">SINGLE</button>
+    <button class="mod m2 ${m===2?'on':''}" data-act="mod" data-v="2">DOUBLE</button>
+    <button class="mod m3 ${m===3?'on':''}" data-act="mod" data-v="3">TRIPLE</button></div>
+  <div class="pad m${m}">${keys.join('')}
+    <button class="k b25" data-act="n" data-v="25" ${m===3?'disabled':''}>${m===2?'BULL':'25'}</button>
+    <button class="k bull sp" data-act="bull">BULL</button>
+    <button class="k miss sp" data-act="n" data-v="0">PUDŁO</button>
+    <button class="k undo sp" data-act="undo" ${S.hist.length?'':'disabled'}>↶ COFNIJ</button>
+    <button class="k sp" data-act="skip" ${g.turn.length?'':'disabled'}>DALEJ ⏭</button>
+  </div></div>`;
+}
+function vGameSh(lock){
+  const g=S.game,cur=g.players[g.cur],sum=turnSum(),n=g.round;
+  const ks=g.turn.map(d=>d.k[0]),need=['S','D','T'].filter(x=>!ks.includes(x));
+  const shPossible=need.length<=3-g.turn.length&&g.turn.every(d=>d.k!=='M')&&new Set(ks).size===ks.length;
+  const hint=shPossible&&g.turn.length?`Szanghaj wciąż możliwy! Brakuje: <b>${need.map(x=>x==='S'?n:x+n).join(' + ')}</b>`:whoHint(cur,lock);
+  return topBar(`Szanghaj · runda ${n}/${g.rounds}`)+
+  cards(g,(p,i)=>p.score+(i===g.cur?sum:0),p=>{const st=stats([g],p.name);return`trafienia ${st.hitPct}% · lotki ${st.darts}`})+
+  `<div class="target"><div class="mut" style="font-size:12px;letter-spacing:2px">CEL</div><div class="big">${n}</div></div>`+
+  slotsHtml(g,sum,hint)+
+  `<div class="shpad ${lock?'locked':''}">
+    <button class="k" data-act="sh" data-v="1">${n}</button>
+    <button class="k d" data-act="sh" data-v="2">D${n}</button>
+    <button class="k t" data-act="sh" data-v="3">T${n}</button>
+    <button class="k miss sp" data-act="sh" data-v="0">PUDŁO</button>
+    <button class="k undo sp" data-act="undo" ${S.hist.length?'':'disabled'}>↶ COFNIJ</button>
+    <button class="k sp" data-act="skip" ${g.turn.length?'':'disabled'}>DALEJ ⏭</button>
+  </div>`;
+}
+function vWin(){
+  const g=S.game,p=g.players[g.winner];let title,sub;
+  if(isSh(g)){
+    const mx=p.score;
+    if(g.shanghai){title=`${esc(p.name)} – SZANGHAJ!`;sub=`Natychmiastowa wygrana w rundzie ${g.round}`}
+    else if(g.tie){title='Remis!';sub=g.players.filter(x=>x.score===mx).map(x=>esc(x.name)).join(' i ')+` – po ${mx} pkt`}
+    else{title=`${esc(p.name)} wygrywa!`;sub=g.players.map(x=>`${esc(x.name)} ${x.score}`).join(' · ')}
+  }else{const st=stats([g],p.name);title=`${esc(p.name)} wygrywa!`;sub=`Średnia ${st.avg.toFixed(1)} · ${st.darts} lotek · zamknięcie ${st.coHigh}`}
+  return`<div class="modal"><div class="box"><div class="trophy">🏆</div><h2 style="margin:6px 0">${title}</h2>
+  <div class="mut">${sub}</div>
+  <button class="btn pri" style="margin-top:16px" data-act="stats">📊 STATYSTYKI</button>
+  <button class="btn" data-act="rematch">🔁 Rewanż (ten sam skład)</button>
+  ${S.online?(S.online.me===0?'<button class="btn" data-act="tolobby">Wróć do pokoju (zmień grę)</button>':'')+'<button class="btn" data-act="leave">Wyjdź z pokoju</button>':'<button class="btn" data-act="setup">Menu – inna gra / gracze</button>'}
+  <button class="btn" data-act="undo">↶ Cofnij ostatnią lotkę</button></div></div>`;
+}
+function vMenu(){
+  return`<div class="modal"><div class="box"><h2 style="margin-top:0">Menu</h2>
+  <button class="btn" data-act="rematch">🔁 Zacznij od nowa (ten sam skład)</button>
+  ${S.online?(S.online.me===0?'<button class="btn" data-act="tolobby">Wróć do pokoju (zmień grę)</button>':'')+'<button class="btn" data-act="leave">Wyjdź z pokoju</button>':'<button class="btn" data-act="setup">Zmień grę / graczy</button>'}
+  <button class="btn" data-act="opts">⚙ Opcje (wygląd, głos)</button>
+  <button class="btn" data-act="tut">❓ Jak to działa</button>
+  <button class="btn" data-act="close">Wróć do gry</button></div></div>`;
+}
+function vStats(){
+  const games=gamesFor(S.statMode),sh=curType()==='sh';
+  const names=[];games.forEach(g=>g.players.forEach(p=>{if(!names.includes(p.name))names.push(p.name)}));
+  if(S.statPlayer&&!names.includes(S.statPlayer))S.statPlayer=null;
+  const col=n=>PCOL[names.indexOf(n)%4];
+  const back=S.game?(S.game.winner==null?'Wróć do gry':'Zamknij'):'Wróć';
+  let h=`<div class="top"><h1>📊 ${sh?'Szanghaj':'501'}</h1><button class="btn sm" data-act="back">${back}</button></div>
+  <div class="seg"><button class="${S.statMode==='game'?'on':''}" data-act="smode" data-v="game">Ta gra</button>
+  <button class="${S.statMode==='session'?'on':''}" data-act="smode" data-v="session">Wszystkie gry (${gamesFor('session').length})</button></div>`;
+  if(!games.some(g=>g.players.some(p=>p.turns.length)))return h+`<div class="card empty">Brak rzutów – zagrajcie choć jedną turę 🎯</div>`;
+  const per=names.map(n=>({n,s:stats(games,n)}));
+  h+=`<div class="card"><h3>Gracze</h3><div class="tw"><table>`;
+  if(sh){h+=`<tr><th>Gracz</th><th>Pkt</th><th>Traf.</th><th>Najl. tura</th><th>Szanghaj</th><th>Lotki</th><th>Wygr.</th></tr>`;
+    per.forEach(({n,s})=>h+=`<tr><td><span class="dot" style="background:${col(n)}"></span><b>${esc(n)}</b></td><td>${s.scored}</td><td>${s.hitPct}%</td><td>${s.best}</td><td>${s.sh}</td><td>${s.darts}</td><td>${s.wins}</td></tr>`)}
+  else{h+=`<tr><th>Gracz</th><th>Śr.</th><th>Max</th><th>180</th><th>140+</th><th>100+</th><th>Lotki</th><th>Bust</th><th>Wygr.</th></tr>`;
+    per.forEach(({n,s})=>h+=`<tr><td><span class="dot" style="background:${col(n)}"></span><b>${esc(n)}</b></td><td>${s.avg.toFixed(1)}</td><td>${s.best}</td><td>${s.n180}</td><td>${s.n140}</td><td>${s.n100}</td><td>${s.darts}</td><td>${s.bust}</td><td>${s.wins}</td></tr>`)}
+  h+=`</table></div></div>`;
+  const shown=S.statPlayer?per.filter(x=>x.n===S.statPlayer):per;
+  const sets=shown.map(x=>({color:col(x.n),hits:x.s.hits}));
+  let info='Dotknij pola na tarczy, żeby zobaczyć, kto ile tam wrzucił.';
+  if(S.segInfo)info=`<b>${lab(S.segInfo)}</b>: `+shown.map(x=>`<span class="dot" style="background:${col(x.n)}"></span>${esc(x.n)} <b>${x.s.hits[S.segInfo]||0}</b>`).join(' &nbsp; ');
+  h+=`<div class="card"><h3>Mapa trafień na tarczy</h3><div class="chips" style="margin:10px 0">
+    <button class="chip ${!S.statPlayer?'on':''}" data-act="sp" data-v="">${names.length>1?'Wszyscy (kolorami)':'Wszyscy'}</button>
+    ${names.length>1?names.map(n=>`<button class="chip ${S.statPlayer===n?'on':''}" data-act="sp" data-v="${esc(n)}"><span class="dot" style="background:${col(n)}"></span>${esc(n)}</button>`).join(''):''}</div>
+    ${boardSVG(sets,S.segInfo)}
+    <div class="leg2">${shown.map(x=>`<span><span class="dot" style="background:${col(x.n)}"></span>${esc(x.n)} – pudła: ${x.s.hits.M||0}</span>`).join('')}</div>
+    <div class="mut" style="font-size:12px;margin-top:6px">${shown.length>1?'Każde pole dzielone na paski – każdy gracz ma swój kolor. Im mocniejszy kolor, tym więcej lotek.':'Im mocniejszy kolor, tym więcej lotek. Liczby = ile lotek wpadło w pole.'}</div>
+    <div class="seginfo">${info}</div></div>`;
+  const sel=stats(games,S.statPlayer);
+  const tot=sel.darts||1,cnt=(s,p)=>Object.entries(s.hits).filter(([k])=>p(k)).reduce((a,[,v])=>a+v,0);
+  const sN=cnt(sel,k=>k[0]==='S'),dN=cnt(sel,k=>k[0]==='D'),tN=cnt(sel,k=>k[0]==='T'),bN=cnt(sel,k=>k==='25'||k==='50'),mN=sel.hits.M||0;
+  const pct=x=>Math.round(x/tot*100)+'%';
+  h+=`<div class="card"><h3>Podział rzutów ${S.statPlayer?'– '+esc(S.statPlayer):''}</h3><div class="kpis" style="margin-top:10px">
+    <div class="kpi"><div class="v">${pct(sN)}</div><div class="l">Single (${sN})</div></div>
+    <div class="kpi"><div class="v" style="color:var(--grn)">${pct(dN)}</div><div class="l">Double (${dN})</div></div>
+    <div class="kpi"><div class="v" style="color:var(--red)">${pct(tN)}</div><div class="l">Triple (${tN})</div></div>
+    ${sh?'':`<div class="kpi"><div class="v">${pct(bN)}</div><div class="l">25 / Bull (${bN})</div></div>`}
+    <div class="kpi"><div class="v">${pct(mN)}</div><div class="l">Pudła (${mN})</div></div>
+    <div class="kpi"><div class="v" style="color:var(--gold)">${sh?sel.hitPct+'%':sel.avg.toFixed(1)}</div><div class="l">${sh?'Skuteczność':'Średnia / 3 lotki'}</div></div></div></div>`;
+  const tk={};shown.forEach(x=>Object.entries(x.s.hits).forEach(([k,v])=>{if(k!=='M')tk[k]=(tk[k]||0)+v}));
+  const top=Object.entries(tk).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(top.length){const mx=top[0][1];
+    h+=`<div class="card"><h3>Najczęstsze pola</h3><div class="bars">${top.map(([k,v])=>`<div class="b"><span class="lab">${lab(k)}</span><div class="stack" style="width:${Math.max(6,v/mx*100)}%">${shown.map(x=>{const c=x.s.hits[k]||0;return c?`<div style="flex:${c};background:${col(x.n)}"></div>`:''}).join('')}</div><span>${v}</span></div>`).join('')}</div></div>`;
+    if(!sh){const byNum={};Object.entries(sel.hits).forEach(([k,v])=>{if(k==='M')return;const n=(k==='25'||k==='50')?'Bull':k.replace(/^[SDT]/,'');byNum[n]=(byNum[n]||0)+v});
+      const fav=Object.entries(byNum).sort((a,b)=>b[1]-a[1])[0];
+      if(fav)h+=`<div class="card mut" style="text-align:center">Ulubiony sektor${S.statPlayer?'':' (wszyscy)'}: <b style="color:var(--gold);font-size:18px">${fav[0]}</b> (${fav[1]} lotek, ${pct(fav[1])})</div>`}
+  }
+  const rows=sh?[['Triple',k=>k[0]==='T'],['Double',k=>k[0]==='D'],['Zwykłe (single)',k=>k[0]==='S'],['Pudła',k=>k==='M']]
+    :[['T20',k=>k==='T20'],['T19',k=>k==='T19'],['T18',k=>k==='T18'],['Wszystkie triple',k=>k[0]==='T'],['Double',k=>k[0]==='D'],['Zwykłe (single)',k=>k[0]==='S'],['25 / Bull',k=>k==='25'||k==='50'],['Pudła',k=>k==='M']];
+  h+=`<div class="card"><h3>Podsumowanie ${per.length>1?'– porównanie':''}</h3><div class="tw"><table><tr><th></th>${per.map(({n})=>`<th style="color:${col(n)}">${esc(n)}</th>`).join('')}</tr>`+
+    rows.map(([l,f])=>{const vals=per.map(({s})=>cnt(s,f));const mx=Math.max(...vals);const good=l!=='Pudła';
+      return`<tr><td>${l}</td>${vals.map(v=>`<td style="font-family:Oswald;font-size:17px;${per.length>1&&v===mx&&v>0?`color:${good?'var(--gold)':'var(--red)'}`:''}">${v}</td>`).join('')}</tr>`}).join('')+`</table></div></div>`;
+  if(S.game&&S.game.winner!=null)h+=`<button class="btn pri" data-act="rematch">🔁 REWANŻ</button>`+(S.online?'':`<button class="btn full" data-act="setup">Menu – inna gra / gracze</button>`);
+  if(!S.online&&S.statMode==='session'&&S.session.length)h+=`<button class="btn full" data-act="clearsess">🗑 Wyczyść zapisane statystyki</button>`;
+  return h;
+}
+const TUT=[
+ ['🎯','Witaj w Darts!','Wybierz grę (501 albo Szanghaj), wpisz nicki do 4 graczy i kliknij <b>ZACZYNAMY</b>. Możesz też grać przez internet – każdy na swoim telefonie.'],
+ ['👆','Wpisywanie przyciskami','Najpierw <b>SINGLE / DOUBLE / TRIPLE</b>, potem liczba. Np. TRIPLE → 20 = <b>T20</b>. Po każdej lotce wraca na SINGLE. Jest też 25, BULL i PUDŁO.'],
+ ['🎤','Mówienie rzutów','Dotknij <b>🎤 Mów rzuty</b> i powiedz trzy rzuty, np. <i>„triple dwadzieścia, dwadzieścia, zero”</i>. Apka przeczyta <b>„Razem 80. Teraz Marek”</b> i sama przejdzie do następnego gracza – on od razu mówi swoje.'],
+ ['↶','Pomyłka? Powiedz „cofnij”','Powiedz <b>„cofnij”</b> (albo „popraw”) – cała ostatnia tura wraca i podajesz ją jeszcze raz. Przycisk <b>↶ COFNIJ</b> cofa jedną lotkę. „<b>Dalej</b>” = reszta lotek to pudła.'],
+ ['📊','Statystyki','Pod 📊 zobaczysz tarczę z trafieniami – każdy gracz swoim kolorem – oraz porównanie: ile T20, T19, zwykłych, średnie, 180-tki. Wygląd i głos zmienisz w ⚙ Opcjach.']];
+function vTut(){
+  const i=S.tut,t=TUT[i],last=i===TUT.length-1;
+  return`<div class="modal" style="z-index:30"><div class="box"><div style="font-size:52px">${t[0]}</div><h2 style="margin:8px 0">${t[1]}</h2>
+  <div class="note" style="font-size:15px;color:var(--txt);text-align:left">${t[2]}</div>
+  <div style="margin:14px 0 4px">${TUT.map((_,j)=>`<span class="dot" style="background:${j===i?'var(--gold)':'var(--line)'};margin:0 3px"></span>`).join('')}</div>
+  <button class="btn pri" style="margin-top:10px" data-act="tutnext">${last?'GRAMY! 🎯':'DALEJ →'}</button>
+  ${last?'':'<button class="btn" data-act="tutskip">Pomiń samouczek</button>'}</div></div>`;
+}
+function render(){
+  const a=$('app'),f=document.activeElement,fid=f&&f.id,pos=f&&f.selectionStart;
+  a.innerHTML=S.screen==='setup'?vSetup():S.screen==='game'&&S.game?vGame():S.screen==='stats'?vStats():S.screen==='opts'?vOpts():S.screen==='online'?vOnline():S.screen==='lobby'&&S.room?vLobby():vSetup();
+  if(S.tut!=null)a.innerHTML+=vTut();
+  if(fid&&$(fid)){const e=$(fid);e.focus();try{e.setSelectionRange(pos,pos)}catch(x){}}
+}
+
+/* ---------- zdarzenia ---------- */
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.classList.contains('nick')&&t.dataset.i!=null){S.cfg.names[+t.dataset.i]=t.value;saveCfg();return}
+  const k=t.dataset.act2;if(!k)return;
+  if(k==='txt')S.txt=t.value;else if(k==='fbText')S.fbText=t.value;
+  else if(k==='myName'){S.cfg.myName=t.value;saveCfg()}
+});
+document.addEventListener('change',e=>{
+  const k=e.target.dataset.act2;if(k==='theme'){S.cfg.theme=e.target.value;saveCfg();applyTheme();render()}
+  else if(k==='voiceMode'){S.cfg.voiceMode=e.target.value;saveCfg()}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='txt'){e.preventDefault();doTxt()}if(e.key==='Enter'&&e.target.id==='joincode'){e.preventDefault();joinRoom(e.target.value)}});
+function doTxt(){const v=S.txt.trim();if(!v)return;S.txt='';handleText(v,true)}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b||b.disabled)return;
+  const act=b.dataset.act,v=b.dataset.v,g=S.game;
+  switch(act){
+    case'mode':S.cfg.mode=v;saveCfg();break;
+    case'count':S.cfg.count=+v;saveCfg();break;
+    case'start':S.cfg.start=+v;saveCfg();break;
+    case'rounds':S.cfg.rounds=+v;saveCfg();break;
+    case'dout':S.cfg.doubleOut=!S.cfg.doubleOut;saveCfg();break;
+    case'speakT':S.cfg.speak=!S.cfg.speak;saveCfg();break;
+    case'go':newGame(false);break;
+    case'resume':{const st=S.saved;S.game=st.game;S.hist=st.hist||[];S.lastMsg=st.last||'';S.saved=null;S.screen='game';break}
+    case'mod':if(canThrow())g.mod=g.mod===+v?1:+v;break;
+    case'n':throwDart(+v,+v===0?1:g.mod);return;
+    case'bull':throwDart(25,2);return;
+    case'sh':throwSh(+v);return;
+    case'undo':undo();return;
+    case'skip':skip();return;
+    case'mic':micToggle();return;
+    case'txtok':doTxt();return;
+    case'menu':S.modal='menu';break;
+    case'close':S.modal=null;break;
+    case'rematch':if(S.online)S.room.phase='game';newGame(true);break;
+    case'setup':S.modal=null;S.screen='setup';if(S.game&&S.game.winner==null){S.saved={game:S.game,hist:S.hist,last:S.lastMsg}}if(S.game)S.cfg.mode=S.game.type;S.game=null;break;
+    case'stats':S.modal=null;S.screen='stats';S.statMode=S.game?'game':'session';S.segInfo=null;break;
+    case'back':if(S.game){S.screen='game';if(S.game.winner!=null)S.modal='win'}else S.screen=S.online?'lobby':'setup';break;
+    case'smode':S.statMode=v;S.segInfo=null;break;
+    case'sp':S.statPlayer=v||null;break;
+    case'seg':S.segInfo=S.segInfo===v?null:v;break;
+    case'clearsess':S.session=[];commit();break;
+    case'opts':S.prev=S.screen==='opts'?S.prev:S.screen;S.modal=null;S.err='';S.screen='opts';break;
+    case'optsback':S.screen=S.prev||'setup';S.err='';break;
+    case'tutnext':if(S.tut<TUT.length-1){S.tut++;break}
+    case'tutskip':S.tut=null;LS.set('darts_tut',1);break;
+    case'tut':S.tut=0;break;
+    case'vtest':{const ss=window.speechSynthesis;if(!ss){S.heard='Ta przeglądarka nie umie czytać głosem';break}
+      const all=ss.getVoices();S.heard='Głosy: '+all.length+', polskie: '+all.filter(v=>/^pl/i.test(v.lang)).length;const sp=S.cfg.speak;S.cfg.speak=true;speak('Razem sto osiemdziesiąt');S.cfg.speak=sp;break}
+    case'fbsave':{const c=parseFbConfig(S.fbText);if(!c){S.err='Nie widzę apiKey i databaseURL – wklej cały fragment firebaseConfig (z databaseURL).';break}LS.set('darts_fb',c);S.err='';S.fbText='';db=null;fbLoading=null;break}
+    case'fbclear':LS.del('darts_fb');db=null;break;
+    case'online':S.err='';S.screen='online';break;
+    case'home':S.err='';S.screen='setup';break;
+    case'testdb':testDB=true;db=null;break;
+    case'create':createRoom();return;
+    case'join':joinRoom(($('joincode')||{}).value);return;
+    case'ostart':startOnline();break;
+    case'tolobby':S.room.phase='lobby';S.game=null;S.modal=null;S.screen='lobby';pushRoom();break;
+    case'leave':leaveRoom();return;
+  }
+  render();
+});
+applyTheme();
+if(!LS.get('darts_tut'))S.tut=0;
+{const r=LS.get('darts_room');if(r&&!r.test&&fbConfig()){S.online={code:r.code,me:r.me};S.screen='lobby';getDB().then(d=>{roomRef=d.ref('rooms/'+r.code);listen()}).catch(()=>leaveRoom())}}
+render();
+</script>
+</body>
+</html>
