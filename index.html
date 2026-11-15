@@ -140,7 +140,7 @@ const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const PCOL=['#f4b942','#3fa7ff','#ff4fa3','#4cd17a'];
 const THEMES=[['dark','Ciemny (domyślny)'],['classic','Klasyczna tarcza'],['blue','Ciemny niebieski'],['light','Jasny'],['neon','Neon'],['pub','Pub (drewno i złoto)'],['sukno','Sukno (zielony stół)']];
 const S={screen:'setup',prev:'setup',
-  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,legs:1,count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
+  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,legs:1,sets:1,count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
   game:null,hist:[],session:[],modal:null,statMode:'game',statPlayer:null,lastMsg:'',segInfo:null,
   say:null,match:null,rank:[],online:null,room:null,micOn:false,heard:'',txt:'',err:'',fbText:''};
 const LS={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -171,14 +171,16 @@ function setSay(p,txt){S.say={n:(S.say?S.say.n:0)+1,p,txt}}
 /* ---------- logika gry ---------- */
 function newGame(keepPlayers,namesOverride,nextLeg){
   const c=S.cfg;let names,type;
-  const prevToWin=S.game&&S.match?S.match.toWin:c.legs;
+  const prevToWin=S.game&&S.match?S.match.toWin:c.legs,prevSets=S.game&&S.match?(S.match.setsToWin||1):(c.sets||1);
   if(namesOverride){names=namesOverride;type=c.mode==='sh'?'sh':'x01'}
   else if(keepPlayers&&S.game){names=S.game.players.map(p=>p.name);type=S.game.type}
   else{names=c.names.slice(0,c.count).map((n,i)=>n.trim()||('Gracz '+(i+1)));type=c.mode==='sh'?'sh':'x01'}
   const st=keepPlayers&&S.game?S.game:null;
   const startIdx=st?(st.startIdx+1)%names.length:0;
-  if(!nextLeg||!S.match)S.match={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),toWin:keepPlayers&&!namesOverride?prevToWin:(c.legs||1),wins:{},over:false,winner:null,leg:0};
-  S.match.leg++;
+  const keep=keepPlayers&&!namesOverride;
+  if(!nextLeg||!S.match)S.match={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),toWin:keep?prevToWin:(c.legs||1),setsToWin:keep?prevSets:(c.sets||1),wins:{},sets:{},set:1,legInSet:0,over:false,winner:null,leg:0};
+  if(S.match.newSet){S.match.wins={};S.match.set++;S.match.legInSet=0;S.match.newSet=false}
+  S.match.leg++;S.match.legInSet=(S.match.legInSet||0)+1;delete S.match.prev;
   S.game={mid:S.match.id,type,start:st?st.start:c.start,doubleOut:st?st.doubleOut:c.doubleOut,rounds:st?st.rounds:c.rounds,round:1,
     startIdx,cur:startIdx,mod:1,turn:[],winner:null,tie:false,shanghai:false,
     players:names.map(n=>({name:n,score:type==='sh'?0:(st?st.start:c.start),turns:[]}))};
@@ -190,12 +192,18 @@ function turnSum(){return S.game.turn.reduce((a,d)=>a+d.v,0)}
 function snap(){S.hist.push(JSON.stringify({g:S.game,last:S.lastMsg}));if(S.hist.length>80)S.hist.shift()}
 function finish(){
   const g=S.game,m=S.match;S.session.push(g);
-  if(!g.tie){const w=g.players[g.winner].name;m.wins[w]=(m.wins[w]||0)+1;if(m.wins[w]>=m.toWin){m.over=true;m.winner=w}}
-  if(m.toWin>1){
-    const st=g.players.map(p=>m.wins[p.name]||0).join(' do ');
-    if(m.over)setSay(g.winner,'Koniec meczu. Wygrywa '+m.winner+', '+st);
-    else setSay(g.winner,(g.tie?'Remis w legu':'Leg dla '+g.players[g.winner].name)+'. Stan '+st);
-  }
+  delete m.prev;m.prev=JSON.stringify(m);m.setWon=null;
+  const ST=m.setsToWin||1;m.sets=m.sets||{};
+  if(!g.tie){const w=g.players[g.winner].name;m.wins[w]=(m.wins[w]||0)+1;
+    if(m.wins[w]>=m.toWin){
+      if(ST>1){m.sets[w]=(m.sets[w]||0)+1;m.setWon=w;m.newSet=true;if(m.sets[w]>=ST){m.over=true;m.winner=w}}
+      else{m.over=true;m.winner=w}
+    }}
+  const lst=g.players.map(p=>m.wins[p.name]||0).join(' do '),sst=g.players.map(p=>m.sets[p.name]||0).join(' do ');
+  if(m.over&&ST>1)setSay(g.winner,'Koniec meczu. Wygrywa '+m.winner+', sety '+sst);
+  else if(m.over&&m.toWin>1)setSay(g.winner,'Koniec meczu. Wygrywa '+m.winner+', '+lst);
+  else if(m.setWon)setSay(g.winner,'Set dla '+m.setWon+'. Sety '+sst);
+  else if(m.toWin>1||ST>1)setSay(g.winner,(g.tie?'Remis w legu':'Leg dla '+g.players[g.winner].name)+'. Stan '+lst);
   if(m.over)recordRank();
   S.modal=m.over?'win':'leg';
 }
@@ -265,8 +273,8 @@ function throwSh(mult,noRender){
 function unwin(){
   const g=S.game,m=S.match;if(!g||g.winner==null)return;
   S.session.pop();
-  if(!g.tie&&m){const w=g.players[g.winner].name;m.wins[w]=Math.max(0,(m.wins[w]||0)-1);
-    if(m.over){m.over=false;m.winner=null;S.rank=S.rank.filter(r=>r.mid!==m.id);LS.set('darts_rank',S.rank)}}
+  if(m){if(m.over){S.rank=S.rank.filter(r=>r.mid!==m.id);LS.set('darts_rank',S.rank)}
+    if(m.prev)S.match=JSON.parse(m.prev)}
 }
 function nextName(){const g=S.game;return g.players.length>1?' Teraz '+g.players[g.cur].name:''}
 /* cofnij całą turę: bieżącą (jeśli zaczęta) albo poprzednią */
@@ -418,7 +426,7 @@ async function createRoom(){
   const name=(S.cfg.myName||'').trim()||'Gracz 1';S.err='';
   try{
     const d=await getDB();const code=genCode();
-    S.room={phase:'lobby',names:[name],cfg:{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds,legs:S.cfg.legs||1}};
+    S.room={phase:'lobby',names:[name],cfg:roomCfg()};
     S.game=null;S.hist=[];S.session=[];S.lastMsg='';S.say=null;
     S.online={code,me:0};roomRef=d.ref('rooms/'+code);await roomRef.set(roomPayload());listen();
   }catch(e){S.err=e.message;render()}
@@ -443,7 +451,8 @@ function listen(){
   lastSay=null;
   roomRef.on('value',sn=>{
     const v=sn.val();if(!v||!S.online)return;const st=JSON.parse(v.d);
-    S.room=st.room;S.game=st.game;S.match=st.match||null;S.hist=st.hist||[];S.session=st.session||[];S.lastMsg=st.last||'';S.say=st.say;
+    S.room=st.room;S.game=st.game;S.match=st.match||null;
+    if(S.online.me!==0&&S.room.cfg)Object.assign(S.cfg,S.room.cfg);S.hist=st.hist||[];S.session=st.session||[];S.lastMsg=st.last||'';S.say=st.say;
     if(S.room.cfg)Object.assign(S.cfg,{mode:S.room.cfg.mode});
     if(S.match&&S.match.over)recordRank();
     if(S.room.phase==='game'&&S.game){if(S.screen==='lobby'||S.screen==='online')S.screen='game';S.modal=S.game.winner!=null&&S.screen==='game'?(S.match&&!S.match.over?'leg':'win'):(S.modal==='win'||S.modal==='leg'?null:S.modal)}
@@ -451,6 +460,8 @@ function listen(){
     handleSay();render();
   });
 }
+function roomCfg(){return{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds,legs:S.cfg.legs||1,sets:S.cfg.sets||1}}
+function syncLobby(){if(S.screen==='lobby'&&S.online&&S.online.me===0&&S.room){S.room.cfg=roomCfg();pushRoom()}}
 function startOnline(){
   Object.assign(S.cfg,S.room.cfg);S.room.phase='game';newGame(false,S.room.names.slice());
 }
@@ -536,9 +547,11 @@ function modeSettings(c){
     :`<label class="lbl">Start od</label>
     <div class="chips">${[301,501,701].map(n=>`<button class="chip ${c.start===n?'on':''}" data-act="start" data-v="${n}">${n}</button>`).join('')}</div>
     <div class="toggle" data-act="dout"><div><b>Double Out</b><div class="mut" style="font-size:12px">kończenie na podwójnym lub Bull</div></div><div class="sw ${c.doubleOut?'on':''}"></div></div>`}
-    <label class="lbl">Legi – mecz do ilu wygranych</label>
+    <label class="lbl">Sety – mecz do ilu wygranych setów</label>
+    <div class="chips">${[1,2,3,4,5].map(n=>`<button class="chip ${(c.sets||1)===n?'on':''}" data-act="sets" data-v="${n}">${n===1?'bez setów':n}</button>`).join('')}</div>
+    <label class="lbl">Legi – ${(c.sets||1)>1?'set do ilu wygranych legów':'mecz do ilu wygranych'}</label>
     <div class="chips">${[1,2,3,4,5].map(n=>`<button class="chip ${(c.legs||1)===n?'on':''}" data-act="legs" data-v="${n}">${n===1?'1 leg':n}</button>`).join('')}</div>
-    ${(c.legs||1)>1?`<div class="note" style="margin-top:8px">Wygrywa ten, kto pierwszy wygra ${c.legs} ${plLeg(c.legs)} (np. 3 = „best of 5”). Legi rozpoczynają gracze na zmianę.</div>`:''}`;
+    ${(c.sets||1)>1||(c.legs||1)>1?`<div class="note" style="margin-top:8px">${(c.sets||1)>1?`Mecz wygrywa ten, kto pierwszy wygra ${c.sets} ${plSet(c.sets)}. Set wygrywa ten, kto pierwszy wygra ${c.legs||1} ${plLeg(c.legs||1)}.`:`Wygrywa ten, kto pierwszy wygra ${c.legs} ${plLeg(c.legs)} (np. 3 = „best of 5”).`} Legi rozpoczynają gracze na zmianę.</div>`:''}`;
 }
 function vSetup(){
   const c=S.cfg,sv=S.saved&&S.saved.game;
@@ -603,18 +616,20 @@ function vOnline(){
     <div class="row" style="margin-top:10px"><input class="nick" id="joincode" maxlength="5" placeholder="KOD" style="text-transform:uppercase;margin:0;flex:1"><button class="btn alt" data-act="join">Dołącz</button></div></div>
   <div class="err">${S.err||''}</div>`;
 }
+function cfgText(c){return(c.mode==='sh'?'Szanghaj · '+c.rounds+' rund':c.start+' · '+(c.doubleOut?'Double Out':'Single Out'))+((c.sets||1)>1?' · do '+c.sets+' '+plSet(c.sets)+', set do '+(c.legs||1)+' '+plLeg(c.legs||1):(c.legs||1)>1?' · do '+c.legs+' wygranych legów':'')}
 function vLobby(){
   const r=S.room,host=S.online.me===0;
   return`<div class="top"><h1>🌐 Pokój</h1><button class="btn sm" data-act="leave">Wyjdź</button></div>
   <div class="card" style="text-align:center"><div class="mut">Kod pokoju – podaj znajomym</div><div class="code">${S.online.code}</div>
-  <div class="mut" style="font-size:13px">${(r.cfg.mode==='sh'?'Szanghaj · '+r.cfg.rounds+' rund':r.cfg.start+' · '+(r.cfg.doubleOut?'Double Out':'Single Out'))+((r.cfg.legs||1)>1?' · do '+r.cfg.legs+' wygranych legów':'')}</div></div>
+  <div class="mut" style="font-size:13px">${cfgText(r.cfg)}</div></div>
+  ${host?`<div class="card"><h3 style="margin-bottom:10px">Ustawienia gry</h3>${modeSettings(S.cfg)}</div>`:''}
   <div class="card"><h3>Gracze (${r.names.length}/4)</h3>
   ${r.names.map((n,i)=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="dot" style="background:${PCOL[i]}"></span><b>${esc(n)}</b>${i===S.online.me?' <span class="mut">(Ty)</span>':''}${i===0?' <span class="mut">· gospodarz</span>':''}</div>`).join('')}</div>
   ${host?`<button class="btn pri" data-act="ostart">START GRY</button>`:'<div class="card note" style="text-align:center">Czekamy, aż gospodarz wystartuje grę…</div>'}`;
 }
 function cards(g,showFn,metaFn){
-  const wins=winsMap(),m=S.match,lg=m&&m.toWin>1;
-  return`<div class="players n${g.players.length}">`+g.players.map((p,i)=>`<div class="pl ${i===g.cur&&g.winner==null?'cur':''}">${lg?`<span class="wins">Legi: <b>${m.wins[p.name]||0}</b></span>`:wins[p.name]?`<span class="wins">🏆 ${wins[p.name]}</span>`:''}
+  const wins=winsMap(),m=S.match,lg=m&&(m.toWin>1||(m.setsToWin||1)>1),hs=m&&(m.setsToWin||1)>1;
+  return`<div class="players n${g.players.length}">`+g.players.map((p,i)=>`<div class="pl ${i===g.cur&&g.winner==null?'cur':''}">${lg?`<span class="wins">${hs?`Sety: <b>${(m.sets||{})[p.name]||0}</b> · `:''}Legi: <b>${m.wins[p.name]||0}</b></span>`:wins[p.name]?`<span class="wins">🏆 ${wins[p.name]}</span>`:''}
       <div class="nm"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}${S.online&&i===S.online.me?' <span class="mut">(Ty)</span>':''}</div><div class="sc">${showFn(p,i)}</div>
       <div class="meta">${metaFn(p,i)}</div></div>`).join('')+`</div>`;
 }
@@ -629,8 +644,9 @@ function vGame(){
 function topBar(tag){return`<div class="top"><span class="tag">${tag}</span>
     <div class="row"><button class="btn sm" data-act="stats">📊</button><button class="btn sm" data-act="menu">☰</button></div></div>
     ${S.online?`<div class="info">Pokój ${S.online.code} · grasz jako <b>${esc(S.room.names[S.online.me]||'')}</b>${testDB?' · 🧪 test':''}</div>`:''}`}
+const plSet=n=>n===1?'set':n<5?'sety':'setów';
 const plLeg=n=>n===1?'leg':n<5?'legi':'legów';
-function legTag(){const m=S.match;return m&&m.toWin>1?` · leg ${m.leg} (do ${m.toWin})`:''}
+function legTag(){const m=S.match;if(!m)return'';if((m.setsToWin||1)>1)return` · set ${m.set} · leg ${m.legInSet}`;return m.toWin>1?` · leg ${m.leg} (do ${m.toWin})`:''}
 function slotsHtml(g,sum,hint){
   const slots=[0,1,2].map(i=>{const d=g.turn[i];return`<div class="slot ${d?'f':''}">${d?lab(d.k):'–'}</div>`}).join('');
   return`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div></div>`;
@@ -675,10 +691,10 @@ function vGameSh(lock){
   </div>`;
 }
 function vLeg(){
-  const g=S.game,m=S.match,who=g.tie?'Remis w legu':`Leg dla ${esc(g.players[g.winner].name)}!`;
-  const st=g.players.map((p,i)=>`<div style="flex:1"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}<div style="font-family:Oswald;font-size:40px">${m.wins[p.name]||0}</div></div>`).join('');
-  return`<div class="modal"><div class="box"><div class="trophy">🎯</div><h2 style="margin:6px 0">${who}</h2>
-  <div class="mut">Mecz do ${m.toWin} wygranych · rozegrano ${m.leg} ${plLeg(m.leg)}</div>
+  const g=S.game,m=S.match,hs=(m.setsToWin||1)>1,who=m.setWon?`Set dla ${esc(m.setWon)}!`:g.tie?'Remis w legu':`Leg dla ${esc(g.players[g.winner].name)}!`;
+  const st=g.players.map((p,i)=>`<div style="flex:1"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}<div style="font-family:Oswald;font-size:40px">${hs?(m.sets[p.name]||0):(m.wins[p.name]||0)}</div>${hs?`<div class="mut" style="font-size:12px">legi w secie: ${m.setWon?'–':(m.wins[p.name]||0)}</div>`:''}</div>`).join('');
+  return`<div class="modal"><div class="box"><div class="trophy">${m.setWon?'🏅':'🎯'}</div><h2 style="margin:6px 0">${who}</h2>
+  <div class="mut">${hs?`Sety (mecz do ${m.setsToWin}) · set ${m.set} do ${m.toWin} ${plLeg(m.toWin)}`:`Mecz do ${m.toWin} wygranych · rozegrano ${m.leg} ${plLeg(m.leg)}`}</div>
   <div class="row" style="margin:14px 0;text-align:center">${st}</div>
   <button class="btn pri" data-act="nextleg">▶ NASTĘPNY LEG</button>
   <button class="btn" data-act="stats">📊 Statystyki meczu</button>
@@ -693,8 +709,8 @@ function vWin(){
     else{title=`${esc(p.name)} wygrywa!`;sub=g.players.map(x=>`${esc(x.name)} ${x.score}`).join(' · ')}
   }else{const st=stats([g],p.name);title=`${esc(p.name)} wygrywa!`;sub=`Średnia ${st.avg.toFixed(1)} · ${st.darts} lotek · zamknięcie ${st.coHigh}`}
   const m=S.match;
-  if(m&&m.toWin>1){const mg=gamesFor('game');title=`${esc(m.winner)} wygrywa mecz!`;
-    sub=g.players.map(x=>`${esc(x.name)} <b style="color:var(--txt)">${m.wins[x.name]||0}</b>`).join(' : ')+(isSh(g)?'':'<br>'+g.players.map(x=>`${esc(x.name)} śr. ${stats(mg,x.name).avg.toFixed(1)}`).join(' · '))}
+  if(m&&(m.toWin>1||(m.setsToWin||1)>1)){const mg=gamesFor('game'),hs=(m.setsToWin||1)>1;title=`${esc(m.winner)} wygrywa mecz!`;
+    sub=(hs?'Sety: ':'')+g.players.map(x=>`${esc(x.name)} <b style="color:var(--txt)">${hs?(m.sets[x.name]||0):(m.wins[x.name]||0)}</b>`).join(' : ')+(isSh(g)?'':'<br>'+g.players.map(x=>`${esc(x.name)} śr. ${stats(mg,x.name).avg.toFixed(1)}`).join(' · '))}
   const rk=!isSh(g)&&m&&m.over?S.rank.slice(0,5).findIndex(r=>r.mid===m.id):-1;
   if(rk>=0)sub+=`<div style="margin-top:8px;color:var(--gold)">🏆 Nowy wynik w Top 5 – miejsce ${rk+1}!</div>`;
   return`<div class="modal"><div class="box"><div class="trophy">🏆</div><h2 style="margin:6px 0">${title}</h2>
@@ -719,7 +735,7 @@ function vStats(){
   const col=n=>PCOL[names.indexOf(n)%4];
   const back=S.game?(S.game.winner==null?'Wróć do gry':'Zamknij'):'Wróć';
   let h=`<div class="top"><h1>📊 ${sh?'Szanghaj':'501'}</h1><button class="btn sm" data-act="back">${back}</button></div>
-  <div class="seg"><button class="${S.statMode==='game'?'on':''}" data-act="smode" data-v="game">${S.match&&S.match.toWin>1?'Ten mecz':'Ta gra'}</button>
+  <div class="seg"><button class="${S.statMode==='game'?'on':''}" data-act="smode" data-v="game">${S.match&&(S.match.toWin>1||(S.match.setsToWin||1)>1)?'Ten mecz':'Ta gra'}</button>
   <button class="${S.statMode==='session'?'on':''}" data-act="smode" data-v="session">Wszystkie gry (${gamesFor('session').length})</button></div>`;
   if(!games.some(g=>g.players.some(p=>p.turns.length)))return h+`<div class="card empty">Brak rzutów – zagrajcie choć jedną turę 🎯</div>`+(sh?'':vRank(true));
   const per=names.map(n=>({n,s:stats(games,n)}));
@@ -775,7 +791,7 @@ const TUT=[
  ['👆','Wpisywanie przyciskami','Najpierw <b>SINGLE / DOUBLE / TRIPLE</b>, potem liczba. Np. TRIPLE → 20 = <b>T20</b>. Po każdej lotce wraca na SINGLE. Jest też 25, BULL i PUDŁO.'],
  ['🎤','Mówienie rzutów','Dotknij <b>🎤 Mów rzuty</b> i powiedz trzy rzuty, np. <i>„triple dwadzieścia, dwadzieścia, zero”</i>. Apka przeczyta <b>„Razem 80. Teraz Marek”</b> i sama przejdzie do następnego gracza – on od razu mówi swoje.'],
  ['↶','Pomyłka? Powiedz „cofnij”','Powiedz <b>„cofnij”</b> (albo „popraw”) – cała ostatnia tura wraca i podajesz ją jeszcze raz. Przycisk <b>↶ COFNIJ</b> cofa jedną lotkę. „<b>Dalej</b>” = reszta lotek to pudła.'],
- ['📊','Statystyki','Pod 📊 zobaczysz tarczę z trafieniami – każdy gracz swoim kolorem – oraz porównanie: ile T20, T19, zwykłych, średnie, 180-tki. Jest też <b>ranking Top 5</b> najlepszych średnich. Przed grą ustawisz, do ilu wygranych <b>legów</b> gracie. Wygląd i głos zmienisz w ⚙ Opcjach.']];
+ ['📊','Statystyki','Pod 📊 zobaczysz tarczę z trafieniami – każdy gracz swoim kolorem – oraz porównanie: ile T20, T19, zwykłych, średnie, 180-tki. Jest też <b>ranking Top 5</b> najlepszych średnich. Przed grą ustawisz <b>sety i legi</b> – także w grze przez internet (gospodarz w pokoju). Wygląd i głos zmienisz w ⚙ Opcjach.']];
 function vTut(){
   const i=S.tut,t=TUT[i],last=i===TUT.length-1;
   return`<div class="modal" style="z-index:30"><div class="box"><div style="font-size:52px">${t[0]}</div><h2 style="margin:8px 0">${t[1]}</h2>
@@ -809,14 +825,15 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b||b.disabled)return;
   const act=b.dataset.act,v=b.dataset.v,g=S.game;
   switch(act){
-    case'mode':S.cfg.mode=v;saveCfg();break;
+    case'mode':S.cfg.mode=v;saveCfg();syncLobby();break;
     case'count':S.cfg.count=+v;saveCfg();break;
-    case'start':S.cfg.start=+v;saveCfg();break;
-    case'rounds':S.cfg.rounds=+v;saveCfg();break;
-    case'legs':S.cfg.legs=+v;saveCfg();break;
+    case'start':S.cfg.start=+v;saveCfg();syncLobby();break;
+    case'rounds':S.cfg.rounds=+v;saveCfg();syncLobby();break;
+    case'legs':S.cfg.legs=+v;saveCfg();syncLobby();break;
+    case'sets':S.cfg.sets=+v;saveCfg();syncLobby();break;
     case'nextleg':newGame(true,null,true);break;
     case'clearrank':S.rank=[];LS.set('darts_rank',[]);break;
-    case'dout':S.cfg.doubleOut=!S.cfg.doubleOut;saveCfg();break;
+    case'dout':S.cfg.doubleOut=!S.cfg.doubleOut;saveCfg();syncLobby();break;
     case'speakT':S.cfg.speak=!S.cfg.speak;saveCfg();break;
     case'go':newGame(false);break;
     case'resume':{const st=S.saved;S.match=st.match||{id:'x'+Date.now(),toWin:1,wins:{},over:false,leg:1};S.game=st.game;S.hist=st.hist||[];S.lastMsg=st.last||'';S.saved=null;S.screen='game';break}
