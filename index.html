@@ -140,12 +140,13 @@ const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const PCOL=['#f4b942','#3fa7ff','#ff4fa3','#4cd17a'];
 const THEMES=[['dark','Ciemny (domyślny)'],['classic','Klasyczna tarcza'],['blue','Ciemny niebieski'],['light','Jasny'],['neon','Neon'],['pub','Pub (drewno i złoto)'],['sukno','Sukno (zielony stół)']];
 const S={screen:'setup',prev:'setup',
-  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
+  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,legs:1,count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
   game:null,hist:[],session:[],modal:null,statMode:'game',statPlayer:null,lastMsg:'',segInfo:null,
-  say:null,online:null,room:null,micOn:false,heard:'',txt:'',err:'',fbText:''};
+  say:null,match:null,rank:[],online:null,room:null,micOn:false,heard:'',txt:'',err:'',fbText:''};
 const LS={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 {const c=LS.get('darts_cfg');if(c)Object.assign(S.cfg,c)}
 {const st=LS.get('darts_state');if(st){S.session=st.session||[];if(st.game){S.saved=st}}}
+S.rank=LS.get('darts_rank')||[];
 function saveCfg(){LS.set('darts_cfg',S.cfg)}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const $=id=>document.getElementById(id);
@@ -157,7 +158,7 @@ function applyTheme(){document.body.dataset.t=S.cfg.theme;const m=document.query
 let lastSay=null;
 function commit(){
   if(S.online){pushRoom()}
-  else LS.set('darts_state',{game:S.game&&S.game.winner==null?S.game:null,hist:S.hist.slice(-60),session:S.session.slice(-50),last:S.lastMsg});
+  else LS.set('darts_state',{match:S.match,game:S.game&&S.game.winner==null?S.game:null,hist:S.hist.slice(-60),session:S.session.slice(-50),last:S.lastMsg});
   handleSay();
 }
 function handleSay(){
@@ -168,14 +169,17 @@ function handleSay(){
 function setSay(p,txt){S.say={n:(S.say?S.say.n:0)+1,p,txt}}
 
 /* ---------- logika gry ---------- */
-function newGame(keepPlayers,namesOverride){
+function newGame(keepPlayers,namesOverride,nextLeg){
   const c=S.cfg;let names,type;
+  const prevToWin=S.game&&S.match?S.match.toWin:c.legs;
   if(namesOverride){names=namesOverride;type=c.mode==='sh'?'sh':'x01'}
   else if(keepPlayers&&S.game){names=S.game.players.map(p=>p.name);type=S.game.type}
   else{names=c.names.slice(0,c.count).map((n,i)=>n.trim()||('Gracz '+(i+1)));type=c.mode==='sh'?'sh':'x01'}
   const st=keepPlayers&&S.game?S.game:null;
   const startIdx=st?(st.startIdx+1)%names.length:0;
-  S.game={type,start:st?st.start:c.start,doubleOut:st?st.doubleOut:c.doubleOut,rounds:st?st.rounds:c.rounds,round:1,
+  if(!nextLeg||!S.match)S.match={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),toWin:keepPlayers&&!namesOverride?prevToWin:(c.legs||1),wins:{},over:false,winner:null,leg:0};
+  S.match.leg++;
+  S.game={mid:S.match.id,type,start:st?st.start:c.start,doubleOut:st?st.doubleOut:c.doubleOut,rounds:st?st.rounds:c.rounds,round:1,
     startIdx,cur:startIdx,mod:1,turn:[],winner:null,tie:false,shanghai:false,
     players:names.map(n=>({name:n,score:type==='sh'?0:(st?st.start:c.start),turns:[]}))};
   S.hist=[];S.lastMsg='';S.modal=null;S.screen='game';S.statPlayer=null;S.segInfo=null;S.saved=null;
@@ -184,7 +188,30 @@ function newGame(keepPlayers,namesOverride){
 function canThrow(){return S.game&&S.game.winner==null&&(!S.online||S.game.cur===S.online.me)}
 function turnSum(){return S.game.turn.reduce((a,d)=>a+d.v,0)}
 function snap(){S.hist.push(JSON.stringify({g:S.game,last:S.lastMsg}));if(S.hist.length>80)S.hist.shift()}
-function finish(){S.session.push(S.game);S.modal='win'}
+function finish(){
+  const g=S.game,m=S.match;S.session.push(g);
+  if(!g.tie){const w=g.players[g.winner].name;m.wins[w]=(m.wins[w]||0)+1;if(m.wins[w]>=m.toWin){m.over=true;m.winner=w}}
+  if(m.toWin>1){
+    const st=g.players.map(p=>m.wins[p.name]||0).join(' do ');
+    if(m.over)setSay(g.winner,'Koniec meczu. Wygrywa '+m.winner+', '+st);
+    else setSay(g.winner,(g.tie?'Remis w legu':'Leg dla '+g.players[g.winner].name)+'. Stan '+st);
+  }
+  if(m.over)recordRank();
+  S.modal=m.over?'win':'leg';
+}
+/* ranking: najlepsze średnie z meczów 501 – zapisywany na tym telefonie */
+function recordRank(){
+  const m=S.match;if(!m||!m.over||S.rank.some(r=>r.mid===m.id))return;
+  const games=S.session.filter(g=>g.mid===m.id&&g.type==='x01');if(!games.length)return;
+  const d=new Date(),date=d.getDate()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+  games[0].players.forEach(p=>{const st=stats(games,p.name);if(st.darts>=9)S.rank.push({mid:m.id,name:p.name,avg:Math.round(st.avg*10)/10,darts:st.darts,legs:games.length,date,won:m.winner===p.name})});
+  S.rank.sort((a,b)=>b.avg-a.avg);S.rank=S.rank.slice(0,50);LS.set('darts_rank',S.rank);
+}
+function vRank(full){
+  const r=S.rank.slice(0,5);if(!r.length)return full?'<div class="card"><h3>🏆 Top 5 – najlepsza średnia</h3><div class="note" style="margin-top:8px">Pusto – skończcie mecz 501 (min. 9 lotek), a wyniki pojawią się tutaj.</div></div>':'';
+  const med=['🥇','🥈','🥉','4.','5.'];
+  return`<div class="card"><h3>🏆 Top 5 – najlepsza średnia</h3><table style="margin-top:6px">${r.map((x,i)=>`<tr><td style="width:34px;font-size:18px">${med[i]}</td><td><b>${esc(x.name)}</b>${x.won?' 🏆':''}<div class="mut" style="font-size:11px">${x.date} · ${x.legs} ${plLeg(x.legs)} · ${x.darts} lotek</div></td><td style="font-family:Oswald;font-size:22px;color:var(--gold);text-align:right">${x.avg.toFixed(1)}</td></tr>`).join('')}</table></div>`;
+}
 function throwDart(base,mult,noRender){
   const g=S.game;if(!canThrow())return;
   if(base===25&&mult===3)return;
@@ -235,11 +262,17 @@ function throwSh(mult,noRender){
   }
   commit();if(!noRender)render();
 }
+function unwin(){
+  const g=S.game,m=S.match;if(!g||g.winner==null)return;
+  S.session.pop();
+  if(!g.tie&&m){const w=g.players[g.winner].name;m.wins[w]=Math.max(0,(m.wins[w]||0)-1);
+    if(m.over){m.over=false;m.winner=null;S.rank=S.rank.filter(r=>r.mid!==m.id);LS.set('darts_rank',S.rank)}}
+}
 function nextName(){const g=S.game;return g.players.length>1?' Teraz '+g.players[g.cur].name:''}
 /* cofnij całą turę: bieżącą (jeśli zaczęta) albo poprzednią */
 function undoTurn(){
   if(!S.hist.length){S.heard='Nie ma czego cofać.';render();return}
-  if(S.game.winner!=null)S.session.pop();
+  unwin();
   let h;do{h=JSON.parse(S.hist.pop());S.game=h.g;S.lastMsg=h.last}while(S.hist.length&&S.game.turn.length>0);
   S.modal=null;const p=S.game.players[S.game.cur];
   S.heard='↶ Cofnięto turę – <b>'+esc(p.name)+'</b>, podaj wynik jeszcze raz.';
@@ -253,7 +286,7 @@ function skip(){
 }
 function undo(){
   if(!S.hist.length)return;
-  if(S.game.winner!=null)S.session.pop();
+  unwin();
   const h=JSON.parse(S.hist.pop());S.game=h.g;S.lastMsg=h.last;S.modal=null;commit();render();
 }
 function lab(k){if(k==='M')return'Pudło';if(k==='50')return'Bull';if(k==='25')return'25';if(k[0]==='S')return k.slice(1);return k}
@@ -378,14 +411,14 @@ function makeFakeDB(){ // atrapa do testów – dane tylko w tej karcie
     once:()=>{const v=get(p);return Promise.resolve({exists:()=>v!=null,val:()=>v})},
     on:(_,cb)=>{const f=()=>{const v=get(p);cb({val:()=>v==null?null:JSON.parse(JSON.stringify(v))})};subs.push(f);f()},off:()=>{}})};
 }
-function roomPayload(){return{d:JSON.stringify({room:S.room,game:S.game,hist:S.hist.slice(-40),session:S.session.slice(-30),last:S.lastMsg,say:S.say}),t:Date.now()}}
+function roomPayload(){return{d:JSON.stringify({room:S.room,game:S.game,match:S.match,hist:S.hist.slice(-40),session:S.session.slice(-30),last:S.lastMsg,say:S.say}),t:Date.now()}}
 function pushRoom(){if(roomRef)roomRef.set(roomPayload()).catch(e=>{S.err='Błąd zapisu: '+e.message;render()})}
 function genCode(){const A='ABCDEFGHJKMNPQRSTUVWXYZ23456789';return Array.from({length:5},()=>A[Math.random()*A.length|0]).join('')}
 async function createRoom(){
   const name=(S.cfg.myName||'').trim()||'Gracz 1';S.err='';
   try{
     const d=await getDB();const code=genCode();
-    S.room={phase:'lobby',names:[name],cfg:{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds}};
+    S.room={phase:'lobby',names:[name],cfg:{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds,legs:S.cfg.legs||1}};
     S.game=null;S.hist=[];S.session=[];S.lastMsg='';S.say=null;
     S.online={code,me:0};roomRef=d.ref('rooms/'+code);await roomRef.set(roomPayload());listen();
   }catch(e){S.err=e.message;render()}
@@ -410,9 +443,10 @@ function listen(){
   lastSay=null;
   roomRef.on('value',sn=>{
     const v=sn.val();if(!v||!S.online)return;const st=JSON.parse(v.d);
-    S.room=st.room;S.game=st.game;S.hist=st.hist||[];S.session=st.session||[];S.lastMsg=st.last||'';S.say=st.say;
+    S.room=st.room;S.game=st.game;S.match=st.match||null;S.hist=st.hist||[];S.session=st.session||[];S.lastMsg=st.last||'';S.say=st.say;
     if(S.room.cfg)Object.assign(S.cfg,{mode:S.room.cfg.mode});
-    if(S.room.phase==='game'&&S.game){if(S.screen==='lobby'||S.screen==='online')S.screen='game';S.modal=S.game.winner!=null&&S.screen==='game'?'win':(S.modal==='win'?null:S.modal)}
+    if(S.match&&S.match.over)recordRank();
+    if(S.room.phase==='game'&&S.game){if(S.screen==='lobby'||S.screen==='online')S.screen='game';S.modal=S.game.winner!=null&&S.screen==='game'?(S.match&&!S.match.over?'leg':'win'):(S.modal==='win'||S.modal==='leg'?null:S.modal)}
     else if(S.room.phase==='lobby'&&S.screen!=='opts')S.screen='lobby';
     handleSay();render();
   });
@@ -434,7 +468,7 @@ function parseFbConfig(txt){
 /* ---------- statystyki ---------- */
 function curType(){return S.game?S.game.type:(S.cfg.mode==='sh'?'sh':'x01')}
 function gamesFor(mode){
-  if(mode==='game')return S.game?[S.game]:[];
+  if(mode==='game'){if(!S.game)return[];const l=S.session.filter(g=>g.mid&&g.mid===S.game.mid);if(!l.includes(S.game)&&!l.some(g=>g===S.game||JSON.stringify(g)===JSON.stringify(S.game)))l.push(S.game);return l}
   const t=curType();const l=S.session.filter(g=>g.type===t);
   if(S.game&&S.game.winner==null&&S.game.type===t)l.push(S.game);return l;
 }
@@ -501,7 +535,10 @@ function modeSettings(c){
     <div class="note" style="margin-top:12px">W rundzie 1 rzucacie w 1, w rundzie 2 w 2 itd. Liczą się tylko trafienia w cel: single ×1, double ×2, triple ×3. <b style="color:var(--txt)">Szanghaj</b> (single + double + triple celu w jednej turze) = natychmiastowa wygrana.</div>`
     :`<label class="lbl">Start od</label>
     <div class="chips">${[301,501,701].map(n=>`<button class="chip ${c.start===n?'on':''}" data-act="start" data-v="${n}">${n}</button>`).join('')}</div>
-    <div class="toggle" data-act="dout"><div><b>Double Out</b><div class="mut" style="font-size:12px">kończenie na podwójnym lub Bull</div></div><div class="sw ${c.doubleOut?'on':''}"></div></div>`}`;
+    <div class="toggle" data-act="dout"><div><b>Double Out</b><div class="mut" style="font-size:12px">kończenie na podwójnym lub Bull</div></div><div class="sw ${c.doubleOut?'on':''}"></div></div>`}
+    <label class="lbl">Legi – mecz do ilu wygranych</label>
+    <div class="chips">${[1,2,3,4,5].map(n=>`<button class="chip ${(c.legs||1)===n?'on':''}" data-act="legs" data-v="${n}">${n===1?'1 leg':n}</button>`).join('')}</div>
+    ${(c.legs||1)>1?`<div class="note" style="margin-top:8px">Wygrywa ten, kto pierwszy wygra ${c.legs} ${plLeg(c.legs)} (np. 3 = „best of 5”). Legi rozpoczynają gracze na zmianę.</div>`:''}`;
 }
 function vSetup(){
   const c=S.cfg,sv=S.saved&&S.saved.game;
@@ -515,7 +552,8 @@ function vSetup(){
   </div>
   <button class="btn pri" data-act="go">ZACZYNAMY</button>
   <button class="btn full" data-act="online">🌐 Gra przez internet (każdy na swoim telefonie)</button>
-  ${S.session.length?`<button class="btn full" data-act="stats">📊 Statystyki sesji</button>`:''}`;
+  ${S.session.length?`<button class="btn full" data-act="stats">📊 Statystyki</button>`:''}
+  <div style="margin-top:12px">${vRank(false)}</div>`;
 }
 function vOpts(){
   const c=S.cfg,fb=fbConfig();
@@ -528,6 +566,7 @@ function vOpts(){
     <div class="toggle" data-act="speakT"><div><b>Czytaj wynik tury na głos</b><div class="mut" style="font-size:12px">„Razem 60”, „Bust”, „Wygrywa…”</div></div><div class="sw ${c.speak?'on':''}"></div></div>
     <button class="btn full" data-act="vtest">🔊 Sprawdź głos</button>
     <button class="btn full" data-act="tut">❓ Jak to działa (samouczek)</button>
+    ${S.rank.length?'<button class="btn full" data-act="clearrank">🗑 Wyczyść ranking Top 5</button>':''}
     <div class="note" style="margin-top:10px">Przykłady: „triple dwadzieścia, dwadzieścia, double szesnaście”, „t20 t20 t20”, „bull”, „dwadzieścia pięć”, „zero”. Po 3 rzutach apka czyta wynik i przechodzi do następnego gracza. „Cofnij” – cofa całą turę, „dalej” – reszta lotek to pudła. Mikrofon działa w Chrome na Androidzie, w wersji otwartej z linku GitHub.</div>
     <div class="heard">${S.heard||''}</div></div>
   <div class="card"><h3>🌐 Firebase (gra przez internet)</h3>
@@ -568,14 +607,14 @@ function vLobby(){
   const r=S.room,host=S.online.me===0;
   return`<div class="top"><h1>🌐 Pokój</h1><button class="btn sm" data-act="leave">Wyjdź</button></div>
   <div class="card" style="text-align:center"><div class="mut">Kod pokoju – podaj znajomym</div><div class="code">${S.online.code}</div>
-  <div class="mut" style="font-size:13px">${r.cfg.mode==='sh'?'Szanghaj · '+r.cfg.rounds+' rund':r.cfg.start+' · '+(r.cfg.doubleOut?'Double Out':'Single Out')}</div></div>
+  <div class="mut" style="font-size:13px">${(r.cfg.mode==='sh'?'Szanghaj · '+r.cfg.rounds+' rund':r.cfg.start+' · '+(r.cfg.doubleOut?'Double Out':'Single Out'))+((r.cfg.legs||1)>1?' · do '+r.cfg.legs+' wygranych legów':'')}</div></div>
   <div class="card"><h3>Gracze (${r.names.length}/4)</h3>
   ${r.names.map((n,i)=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><span class="dot" style="background:${PCOL[i]}"></span><b>${esc(n)}</b>${i===S.online.me?' <span class="mut">(Ty)</span>':''}${i===0?' <span class="mut">· gospodarz</span>':''}</div>`).join('')}</div>
   ${host?`<button class="btn pri" data-act="ostart">START GRY</button>`:'<div class="card note" style="text-align:center">Czekamy, aż gospodarz wystartuje grę…</div>'}`;
 }
 function cards(g,showFn,metaFn){
-  const wins=winsMap();
-  return`<div class="players n${g.players.length}">`+g.players.map((p,i)=>`<div class="pl ${i===g.cur&&g.winner==null?'cur':''}">${wins[p.name]?`<span class="wins">🏆 ${wins[p.name]}</span>`:''}
+  const wins=winsMap(),m=S.match,lg=m&&m.toWin>1;
+  return`<div class="players n${g.players.length}">`+g.players.map((p,i)=>`<div class="pl ${i===g.cur&&g.winner==null?'cur':''}">${lg?`<span class="wins">Legi: <b>${m.wins[p.name]||0}</b></span>`:wins[p.name]?`<span class="wins">🏆 ${wins[p.name]}</span>`:''}
       <div class="nm"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}${S.online&&i===S.online.me?' <span class="mut">(Ty)</span>':''}</div><div class="sc">${showFn(p,i)}</div>
       <div class="meta">${metaFn(p,i)}</div></div>`).join('')+`</div>`;
 }
@@ -585,11 +624,13 @@ function vGame(){
   `<div class="voice"><button class="mic ${S.micOn?'on':''}" data-act="mic">${S.micOn?'🎙 Słucham… (dotknij, by wyłączyć)':'🎤 Mów rzuty'}</button>
    <div class="row" style="margin-top:8px"><input class="txt" id="txt" data-act2="txt" placeholder="albo wpisz: t20 20 d16" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
    <div class="heard">${S.heard||''}</div></div>`+
-  (S.lastMsg?`<div class="last">Ostatnio: ${S.lastMsg}</div>`:'')+(S.modal==='win'?vWin():'')+(S.modal==='menu'?vMenu():'');
+  (S.lastMsg?`<div class="last">Ostatnio: ${S.lastMsg}</div>`:'')+(S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'');
 }
 function topBar(tag){return`<div class="top"><span class="tag">${tag}</span>
     <div class="row"><button class="btn sm" data-act="stats">📊</button><button class="btn sm" data-act="menu">☰</button></div></div>
     ${S.online?`<div class="info">Pokój ${S.online.code} · grasz jako <b>${esc(S.room.names[S.online.me]||'')}</b>${testDB?' · 🧪 test':''}</div>`:''}`}
+const plLeg=n=>n===1?'leg':n<5?'legi':'legów';
+function legTag(){const m=S.match;return m&&m.toWin>1?` · leg ${m.leg} (do ${m.toWin})`:''}
 function slotsHtml(g,sum,hint){
   const slots=[0,1,2].map(i=>{const d=g.turn[i];return`<div class="slot ${d?'f':''}">${d?lab(d.k):'–'}</div>`}).join('');
   return`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div></div>`;
@@ -600,7 +641,7 @@ function vGameX(lock){
   const left=3-g.turn.length,co=rem<=170?checkout(rem,left,g.doubleOut):null;
   const hint=co?`${lock?esc(cur.name)+' – ':''}Zamknięcie: <b>${co.map(d=>lab(d.k)).join(' · ')}</b>`:whoHint(cur,lock);
   const m=g.mod,keys=[];for(let i=1;i<=20;i++)keys.push(`<button class="k n" data-act="n" data-v="${i}">${i}</button>`);
-  return topBar(`${g.start} · ${g.doubleOut?'Double Out':'Single Out'}`)+
+  return topBar(`${g.start} · ${g.doubleOut?'D.Out':'S.Out'}${legTag()}`)+
   cards(g,(p,i)=>i===g.cur?p.score-sum:p.score,(p,i)=>{const st=stats([g],p.name);return`śr. ${st.avg.toFixed(1)} · lotki ${st.darts+(i===g.cur?g.turn.length:0)}`})+
   slotsHtml(g,sum,hint)+
   `<div class="${lock?'locked':''}"><div class="mods">
@@ -620,7 +661,7 @@ function vGameSh(lock){
   const ks=g.turn.map(d=>d.k[0]),need=['S','D','T'].filter(x=>!ks.includes(x));
   const shPossible=need.length<=3-g.turn.length&&g.turn.every(d=>d.k!=='M')&&new Set(ks).size===ks.length;
   const hint=shPossible&&g.turn.length?`Szanghaj wciąż możliwy! Brakuje: <b>${need.map(x=>x==='S'?n:x+n).join(' + ')}</b>`:whoHint(cur,lock);
-  return topBar(`Szanghaj · runda ${n}/${g.rounds}`)+
+  return topBar(`Szanghaj · runda ${n}/${g.rounds}${legTag()}`)+
   cards(g,(p,i)=>p.score+(i===g.cur?sum:0),p=>{const st=stats([g],p.name);return`trafienia ${st.hitPct}% · lotki ${st.darts}`})+
   `<div class="target"><div class="mut" style="font-size:12px;letter-spacing:2px">CEL</div><div class="big">${n}</div></div>`+
   slotsHtml(g,sum,hint)+
@@ -633,6 +674,16 @@ function vGameSh(lock){
     <button class="k sp" data-act="skip" ${g.turn.length?'':'disabled'}>DALEJ ⏭</button>
   </div>`;
 }
+function vLeg(){
+  const g=S.game,m=S.match,who=g.tie?'Remis w legu':`Leg dla ${esc(g.players[g.winner].name)}!`;
+  const st=g.players.map((p,i)=>`<div style="flex:1"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}<div style="font-family:Oswald;font-size:40px">${m.wins[p.name]||0}</div></div>`).join('');
+  return`<div class="modal"><div class="box"><div class="trophy">🎯</div><h2 style="margin:6px 0">${who}</h2>
+  <div class="mut">Mecz do ${m.toWin} wygranych · rozegrano ${m.leg} ${plLeg(m.leg)}</div>
+  <div class="row" style="margin:14px 0;text-align:center">${st}</div>
+  <button class="btn pri" data-act="nextleg">▶ NASTĘPNY LEG</button>
+  <button class="btn" data-act="stats">📊 Statystyki meczu</button>
+  <button class="btn" data-act="undo">↶ Cofnij ostatnią lotkę</button></div></div>`;
+}
 function vWin(){
   const g=S.game,p=g.players[g.winner];let title,sub;
   if(isSh(g)){
@@ -641,10 +692,15 @@ function vWin(){
     else if(g.tie){title='Remis!';sub=g.players.filter(x=>x.score===mx).map(x=>esc(x.name)).join(' i ')+` – po ${mx} pkt`}
     else{title=`${esc(p.name)} wygrywa!`;sub=g.players.map(x=>`${esc(x.name)} ${x.score}`).join(' · ')}
   }else{const st=stats([g],p.name);title=`${esc(p.name)} wygrywa!`;sub=`Średnia ${st.avg.toFixed(1)} · ${st.darts} lotek · zamknięcie ${st.coHigh}`}
+  const m=S.match;
+  if(m&&m.toWin>1){const mg=gamesFor('game');title=`${esc(m.winner)} wygrywa mecz!`;
+    sub=g.players.map(x=>`${esc(x.name)} <b style="color:var(--txt)">${m.wins[x.name]||0}</b>`).join(' : ')+(isSh(g)?'':'<br>'+g.players.map(x=>`${esc(x.name)} śr. ${stats(mg,x.name).avg.toFixed(1)}`).join(' · '))}
+  const rk=!isSh(g)&&m&&m.over?S.rank.slice(0,5).findIndex(r=>r.mid===m.id):-1;
+  if(rk>=0)sub+=`<div style="margin-top:8px;color:var(--gold)">🏆 Nowy wynik w Top 5 – miejsce ${rk+1}!</div>`;
   return`<div class="modal"><div class="box"><div class="trophy">🏆</div><h2 style="margin:6px 0">${title}</h2>
   <div class="mut">${sub}</div>
   <button class="btn pri" style="margin-top:16px" data-act="stats">📊 STATYSTYKI</button>
-  <button class="btn" data-act="rematch">🔁 Rewanż (ten sam skład)</button>
+  <button class="btn" data-act="rematch">🔁 Rewanż – nowy mecz (ten sam skład)</button>
   ${S.online?(S.online.me===0?'<button class="btn" data-act="tolobby">Wróć do pokoju (zmień grę)</button>':'')+'<button class="btn" data-act="leave">Wyjdź z pokoju</button>':'<button class="btn" data-act="setup">Menu – inna gra / gracze</button>'}
   <button class="btn" data-act="undo">↶ Cofnij ostatnią lotkę</button></div></div>`;
 }
@@ -663,9 +719,9 @@ function vStats(){
   const col=n=>PCOL[names.indexOf(n)%4];
   const back=S.game?(S.game.winner==null?'Wróć do gry':'Zamknij'):'Wróć';
   let h=`<div class="top"><h1>📊 ${sh?'Szanghaj':'501'}</h1><button class="btn sm" data-act="back">${back}</button></div>
-  <div class="seg"><button class="${S.statMode==='game'?'on':''}" data-act="smode" data-v="game">Ta gra</button>
+  <div class="seg"><button class="${S.statMode==='game'?'on':''}" data-act="smode" data-v="game">${S.match&&S.match.toWin>1?'Ten mecz':'Ta gra'}</button>
   <button class="${S.statMode==='session'?'on':''}" data-act="smode" data-v="session">Wszystkie gry (${gamesFor('session').length})</button></div>`;
-  if(!games.some(g=>g.players.some(p=>p.turns.length)))return h+`<div class="card empty">Brak rzutów – zagrajcie choć jedną turę 🎯</div>`;
+  if(!games.some(g=>g.players.some(p=>p.turns.length)))return h+`<div class="card empty">Brak rzutów – zagrajcie choć jedną turę 🎯</div>`+(sh?'':vRank(true));
   const per=names.map(n=>({n,s:stats(games,n)}));
   h+=`<div class="card"><h3>Gracze</h3><div class="tw"><table>`;
   if(sh){h+=`<tr><th>Gracz</th><th>Pkt</th><th>Traf.</th><th>Najl. tura</th><th>Szanghaj</th><th>Lotki</th><th>Wygr.</th></tr>`;
@@ -708,7 +764,9 @@ function vStats(){
   h+=`<div class="card"><h3>Podsumowanie ${per.length>1?'– porównanie':''}</h3><div class="tw"><table><tr><th></th>${per.map(({n})=>`<th style="color:${col(n)}">${esc(n)}</th>`).join('')}</tr>`+
     rows.map(([l,f])=>{const vals=per.map(({s})=>cnt(s,f));const mx=Math.max(...vals);const good=l!=='Pudła';
       return`<tr><td>${l}</td>${vals.map(v=>`<td style="font-family:Oswald;font-size:17px;${per.length>1&&v===mx&&v>0?`color:${good?'var(--gold)':'var(--red)'}`:''}">${v}</td>`).join('')}</tr>`}).join('')+`</table></div></div>`;
-  if(S.game&&S.game.winner!=null)h+=`<button class="btn pri" data-act="rematch">🔁 REWANŻ</button>`+(S.online?'':`<button class="btn full" data-act="setup">Menu – inna gra / gracze</button>`);
+  if(!sh)h+=vRank(true);
+  if(S.game&&S.game.winner!=null&&S.match&&!S.match.over)h+=`<button class="btn pri" data-act="nextleg">▶ NASTĘPNY LEG</button>`;
+  else if(S.game&&S.game.winner!=null)h+=`<button class="btn pri" data-act="rematch">🔁 REWANŻ</button>`+(S.online?'':`<button class="btn full" data-act="setup">Menu – inna gra / gracze</button>`);
   if(!S.online&&S.statMode==='session'&&S.session.length)h+=`<button class="btn full" data-act="clearsess">🗑 Wyczyść zapisane statystyki</button>`;
   return h;
 }
@@ -717,7 +775,7 @@ const TUT=[
  ['👆','Wpisywanie przyciskami','Najpierw <b>SINGLE / DOUBLE / TRIPLE</b>, potem liczba. Np. TRIPLE → 20 = <b>T20</b>. Po każdej lotce wraca na SINGLE. Jest też 25, BULL i PUDŁO.'],
  ['🎤','Mówienie rzutów','Dotknij <b>🎤 Mów rzuty</b> i powiedz trzy rzuty, np. <i>„triple dwadzieścia, dwadzieścia, zero”</i>. Apka przeczyta <b>„Razem 80. Teraz Marek”</b> i sama przejdzie do następnego gracza – on od razu mówi swoje.'],
  ['↶','Pomyłka? Powiedz „cofnij”','Powiedz <b>„cofnij”</b> (albo „popraw”) – cała ostatnia tura wraca i podajesz ją jeszcze raz. Przycisk <b>↶ COFNIJ</b> cofa jedną lotkę. „<b>Dalej</b>” = reszta lotek to pudła.'],
- ['📊','Statystyki','Pod 📊 zobaczysz tarczę z trafieniami – każdy gracz swoim kolorem – oraz porównanie: ile T20, T19, zwykłych, średnie, 180-tki. Wygląd i głos zmienisz w ⚙ Opcjach.']];
+ ['📊','Statystyki','Pod 📊 zobaczysz tarczę z trafieniami – każdy gracz swoim kolorem – oraz porównanie: ile T20, T19, zwykłych, średnie, 180-tki. Jest też <b>ranking Top 5</b> najlepszych średnich. Przed grą ustawisz, do ilu wygranych <b>legów</b> gracie. Wygląd i głos zmienisz w ⚙ Opcjach.']];
 function vTut(){
   const i=S.tut,t=TUT[i],last=i===TUT.length-1;
   return`<div class="modal" style="z-index:30"><div class="box"><div style="font-size:52px">${t[0]}</div><h2 style="margin:8px 0">${t[1]}</h2>
@@ -755,10 +813,13 @@ document.addEventListener('click',e=>{
     case'count':S.cfg.count=+v;saveCfg();break;
     case'start':S.cfg.start=+v;saveCfg();break;
     case'rounds':S.cfg.rounds=+v;saveCfg();break;
+    case'legs':S.cfg.legs=+v;saveCfg();break;
+    case'nextleg':newGame(true,null,true);break;
+    case'clearrank':S.rank=[];LS.set('darts_rank',[]);break;
     case'dout':S.cfg.doubleOut=!S.cfg.doubleOut;saveCfg();break;
     case'speakT':S.cfg.speak=!S.cfg.speak;saveCfg();break;
     case'go':newGame(false);break;
-    case'resume':{const st=S.saved;S.game=st.game;S.hist=st.hist||[];S.lastMsg=st.last||'';S.saved=null;S.screen='game';break}
+    case'resume':{const st=S.saved;S.match=st.match||{id:'x'+Date.now(),toWin:1,wins:{},over:false,leg:1};S.game=st.game;S.hist=st.hist||[];S.lastMsg=st.last||'';S.saved=null;S.screen='game';break}
     case'mod':if(canThrow())g.mod=g.mod===+v?1:+v;break;
     case'n':throwDart(+v,+v===0?1:g.mod);return;
     case'bull':throwDart(25,2);return;
@@ -772,7 +833,7 @@ document.addEventListener('click',e=>{
     case'rematch':if(S.online)S.room.phase='game';newGame(true);break;
     case'setup':S.modal=null;S.screen='setup';if(S.game&&S.game.winner==null){S.saved={game:S.game,hist:S.hist,last:S.lastMsg}}if(S.game)S.cfg.mode=S.game.type;S.game=null;break;
     case'stats':S.modal=null;S.screen='stats';S.statMode=S.game?'game':'session';S.segInfo=null;break;
-    case'back':if(S.game){S.screen='game';if(S.game.winner!=null)S.modal='win'}else S.screen=S.online?'lobby':'setup';break;
+    case'back':if(S.game){S.screen='game';if(S.game.winner!=null)S.modal=S.match&&!S.match.over?'leg':'win'}else S.screen=S.online?'lobby':'setup';break;
     case'smode':S.statMode=v;S.segInfo=null;break;
     case'sp':S.statPlayer=v||null;break;
     case'seg':S.segInfo=S.segInfo===v?null:v;break;
