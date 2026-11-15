@@ -544,14 +544,14 @@ function vSetup(){
   const c=S.cfg,sv=S.saved&&S.saved.game;
   return`<div class="top"><h1>🎯 DARTS</h1><button class="btn sm" data-act="opts">⚙ Opcje</button></div>
   ${sv?`<button class="btn alt full" style="margin:0 0 12px" data-act="resume">▶ Kontynuuj grę: ${sv.players.map(p=>esc(p.name)).join(', ')}</button>`:''}
-  <div class="card">${modeSettings(c)}
-    <label class="lbl">Liczba graczy (na tym telefonie)</label>
+  <button class="btn pri" style="padding:20px;font-size:22px" data-act="online">🌐 GRAJ PRZEZ INTERNET<div style="font-family:Inter;font-size:13px;font-weight:600;letter-spacing:0;opacity:.85;margin-top:4px">każdy na swoim telefonie · kod pokoju</div></button>
+  <div class="card" style="margin-top:16px"><h3 style="font-size:16px;margin-bottom:12px">📱 Gra na jednym telefonie</h3>${modeSettings(c)}
+    <label class="lbl">Liczba graczy</label>
     <div class="chips">${[1,2,3,4].map(n=>`<button class="chip ${c.count===n?'on':''}" data-act="count" data-v="${n}">${n}</button>`).join('')}</div>
     <label class="lbl">Nicki</label>
     ${[...Array(c.count)].map((_,i)=>`<div class="row"><span class="dot" style="background:${PCOL[i]};width:14px;height:14px;margin:0 2px 8px 0"></span><input class="nick" data-i="${i}" maxlength="16" placeholder="Gracz ${i+1}" value="${esc(c.names[i]||'')}"></div>`).join('')}
+    <button class="btn alt full" data-act="go">▶ Graj na tym telefonie</button>
   </div>
-  <button class="btn pri" data-act="go">ZACZYNAMY</button>
-  <button class="btn full" data-act="online">🌐 Gra przez internet (każdy na swoim telefonie)</button>
   ${S.session.length?`<button class="btn full" data-act="stats">📊 Statystyki</button>`:''}
   <div style="margin-top:12px">${vRank(false)}</div>`;
 }
