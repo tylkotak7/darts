@@ -195,6 +195,7 @@ function canThrow(){return S.game&&S.game.winner==null&&(!S.online||S.game.cur==
 function turnSum(){return S.game.turn.reduce((a,d)=>a+d.v,0)}
 function snap(){S.hist.push(JSON.stringify({g:S.game,last:S.lastMsg}));if(S.hist.length>80)S.hist.shift()}
 function finish(){
+  if(!S.match||S.match.id!==S.game.mid){S.match={id:S.game.mid||('m'+Date.now()),toWin:1,setsToWin:1,wins:{},sets:{},set:1,legInSet:1,over:false,winner:null,leg:1};S.game.mid=S.match.id}
   const g=S.game,m=S.match;S.session.push(g);
   delete m.prev;m.prev=JSON.stringify(m);m.setWon=null;
   const ST=m.setsToWin||1;m.sets=m.sets||{};
@@ -860,6 +861,7 @@ document.addEventListener('change',e=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='txt'){e.preventDefault();doTxt()}if(e.key==='Enter'&&e.target.id==='joincode'){e.preventDefault();joinRoom(e.target.value)}});
 function doTxt(){const v=S.txt.trim();if(!v)return;S.txt='';handleText(v,true)}
+window.addEventListener('error',e=>{S.heard='⚠️ Błąd apki: '+esc(e.message)+' – zrób zrzut ekranu i wyślij Claude.';try{render()}catch(x){}});
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b||b.disabled)return;
   const act=b.dataset.act,v=b.dataset.v,g=S.game;
