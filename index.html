@@ -75,6 +75,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
 .locked{opacity:.35;pointer-events:none}
 .flash{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);font-family:Oswald;font-size:56px;color:var(--red);text-shadow:0 4px 24px #000;pointer-events:none;opacity:0;transition:opacity .2s;z-index:20;white-space:nowrap}
 .flash.show{opacity:1}
+.said{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--gold);color:#111;font-weight:700;font-size:18px;padding:12px 20px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none;z-index:25;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+.said.show{opacity:1}
+.lastturn{background:var(--card);border-left:4px solid var(--gold);border-radius:12px;padding:8px 12px;margin-bottom:10px;font-size:14px}
 .last{font-size:12px;color:var(--mut);text-align:center;margin:8px 0 0}
 .voice{background:var(--card);border-radius:14px;padding:10px;margin-top:10px}
 .mic{width:100%;font-size:18px;padding:14px;border-radius:12px;background:var(--sp);color:#fff;font-weight:700}
@@ -120,6 +123,7 @@ svg.board{width:100%;height:auto;display:block}
 <body data-t="dark">
 <div id="app"></div>
 <div class="flash" id="flash"></div>
+<div class="said" id="said"></div>
 <script>
 /* =====================================================================
    FIREBASE (gra przez internet). Wklej tu swoją konfigurację z konsoli
@@ -241,7 +245,7 @@ function endTurn(bust){
   p.turns.push({darts:g.turn,total:bust?0:sum,bust});
   if(!bust)p.score-=sum;
   S.lastMsg=esc(p.name)+': '+g.turn.map(d=>lab(d.k)).join(' · ')+' = '+(bust?'BUST':sum);
-  if(!bust&&sum===180)flash('180!');
+  if(!bust)flash(sum===180?'180!':String(sum));
   g.turn=[];g.cur=(g.cur+1)%g.players.length;
 }
 /* Szanghaj: runda = cel; liczą się tylko trafienia w cel; S+D+T celu w jednej turze = natychmiastowa wygrana */
@@ -307,6 +311,13 @@ const M3=wset('triple tripel trypel tryple tripple potrojne potrojny potrojna tr
 const BULL=wset('bull bul bulls bullseye srodek srodka bula'),OUT=wset('outer zewnetrzny'),MISS=wset('zero pudlo pudla pudel miss nic');
 const NUM={jeden:1,jedynka:1,jedna:1,dwa:2,dwie:2,dwojka:2,trzy:3,trojka:3,cztery:4,czworka:4,piec:5,piatka:5,szesc:6,szostka:6,siedem:7,siodemka:7,osiem:8,osemka:8,dziewiec:9,dziewiatka:9,dziesiec:10,dziesiatka:10,
  jedenascie:11,dwanascie:12,trzynascie:13,czternascie:14,pietnascie:15,szesnascie:16,siedemnascie:17,osiemnascie:18,dziewietnascie:19,dwadziescia:20,dwiadziescia:20,dwadziesci:20,dwudziestka:20};
+function splitNum(w){ // "2020" -> 20,20 ; "602019" -> 60,20,19
+  const out=[];let i=0;
+  while(i<w.length){const two=w.slice(i,i+2);
+    if(two.length===2&&w[i]!=='0'&&(+two<=20||+two===25||+two===50||(+two<=60&&+two%3===0)||(+two<=40&&+two%2===0))){out.push(two);i+=2}
+    else{out.push(w[i]);i++}}
+  return out;
+}
 function parse(text){
   const tk=norm(text).split(/[^a-z0-9]+/).filter(Boolean),out=[];let m=0;
   for(let i=0;i<tk.length;i++){
@@ -317,7 +328,11 @@ function parse(text){
     if(MISS.has(w)){out.push({b:0,m:1});m=0;continue}
     let k=null,mu=m||1;const mm=w.match(/^([tds])(\d+)$/);
     if(mm){mu={t:3,d:2,s:1}[mm[1]];k=+mm[2]}
-    else if(/^\d+$/.test(w))k=+w;
+    else if(/^\d+$/.test(w)){
+      k=+w;
+      if(k>60&&k!==0){const parts=splitNum(w);if(parts.length>1){tk.splice(i+1,0,...parts.slice(1));k=+parts[0]}}
+      if(k>20&&k!==25&&k!==50&&!m){if(k<=60&&k%3===0){mu=3;k=k/3}else if(k<=40&&k%2===0){mu=2;k=k/2}}
+    }
     else if(w in NUM)k=NUM[w];
     if(k===null)continue;
     if(k===20&&!mm&&(tk[i+1]==='piec'||tk[i+1]==='5')){k=25;i++}
@@ -357,10 +372,10 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
 function micToggle(){
   if(!SR){S.heard='Ta przeglądarka nie obsługuje mikrofonu – użyj Chrome na Androidzie albo wpisz rzuty w pole.';render();return}
   if(!rec){
-    rec=new SR();rec.lang='pl-PL';rec.interimResults=false;rec.maxAlternatives=3;rec.continuous=true;
+    rec=new SR();rec.lang='pl-PL';rec.interimResults=false;rec.maxAlternatives=3;rec.continuous=false;
     rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){if(!e.results[i].isFinal)continue;
       const alts=[...e.results[i]].map(a=>a.transcript);const best=alts.find(a=>parse(a).length)||alts[0];handleText(best)}};
-    rec.onend=()=>{if(S.micOn)try{rec.start()}catch(e){}};
+    rec.onend=()=>{if(S.micOn&&!speaking)setTimeout(()=>{if(S.micOn&&!speaking)try{rec.start()}catch(e){}},150)};
     rec.onerror=e=>{if(e.error==='no-speech'||e.error==='aborted')return;
       S.heard=e.error==='not-allowed'||e.error==='service-not-allowed'?'Brak dostępu do mikrofonu. Otwórz apkę z linku GitHub w Chrome i zezwól na mikrofon.':'Błąd mikrofonu: '+e.error;
       if(e.error==='not-allowed'||e.error==='service-not-allowed')S.micOn=false;render()};
@@ -370,14 +385,20 @@ function micToggle(){
   else{try{rec.stop()}catch(e){}S.heard=''}
   render();
 }
+let speaking=false,spkTimer=null;
 function speak(txt){
+  showSaid(txt);
   if(!S.cfg.speak)return;const ss=window.speechSynthesis;if(!ss)return;
-  const u=new SpeechSynthesisUtterance(txt);u.lang='pl-PL';
+  // mikrofon na czas mówienia wyłączamy – na Androidzie inaczej telefon nie czyta
+  speaking=true;mute=true;if(rec&&S.micOn)try{rec.abort()}catch(e){}
+  const u=new SpeechSynthesisUtterance(txt);u.lang='pl-PL';u.rate=1.05;
   const v=ss.getVoices().find(v=>/^pl/i.test(v.lang));if(v)u.voice=v;
-  const done=()=>setTimeout(()=>{mute=false},700);
-  u.onend=done;u.onerror=done;mute=true;setTimeout(done,6000);
-  try{ss.cancel();setTimeout(()=>ss.speak(u),80)}catch(e){}
+  let fin=false;const done=()=>{if(fin)return;fin=true;clearTimeout(spkTimer);
+    setTimeout(()=>{speaking=false;mute=false;if(rec&&S.micOn)try{rec.start()}catch(e){}},400)};
+  u.onend=done;u.onerror=done;spkTimer=setTimeout(done,7000);
+  try{ss.cancel();ss.resume();setTimeout(()=>ss.speak(u),150)}catch(e){done()}
 }
+function showSaid(txt){const f=$('said');if(!f)return;f.textContent='🔊 '+txt;f.classList.add('show');clearTimeout(f._t);f._t=setTimeout(()=>f.classList.remove('show'),3500)}
 
 /* ---------- podpowiedź zakończenia (501) ---------- */
 const ALL=[];for(let n=20;n>=1;n--)ALL.push({k:'T'+n,v:n*3});
@@ -639,7 +660,7 @@ function vGame(){
   `<div class="voice"><button class="mic ${S.micOn?'on':''}" data-act="mic">${S.micOn?'🎙 Słucham… (dotknij, by wyłączyć)':'🎤 Mów rzuty'}</button>
    <div class="row" style="margin-top:8px"><input class="txt" id="txt" data-act2="txt" placeholder="albo wpisz: t20 20 d16" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
    <div class="heard">${S.heard||''}</div></div>`+
-  (S.lastMsg?`<div class="last">Ostatnio: ${S.lastMsg}</div>`:'')+(S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'');
+  (S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'');
 }
 function topBar(tag){return`<div class="top"><span class="tag">${tag}</span>
     <div class="row"><button class="btn sm" data-act="stats">📊</button><button class="btn sm" data-act="menu">☰</button></div></div>
@@ -649,7 +670,7 @@ const plLeg=n=>n===1?'leg':n<5?'legi':'legów';
 function legTag(){const m=S.match;if(!m)return'';if((m.setsToWin||1)>1)return` · set ${m.set} · leg ${m.legInSet}`;return m.toWin>1?` · leg ${m.leg} (do ${m.toWin})`:''}
 function slotsHtml(g,sum,hint){
   const slots=[0,1,2].map(i=>{const d=g.turn[i];return`<div class="slot ${d?'f':''}">${d?lab(d.k):'–'}</div>`}).join('');
-  return`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div></div>`;
+  return(S.lastMsg?`<div class="lastturn">↩ ${S.lastMsg}</div>`:'')+`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div></div>`;
 }
 function whoHint(cur,lock){return lock?'Rzuca <b style="color:var(--gold)">'+esc(cur.name)+'</b> – czekaj na swoją kolej':'Rzuca <b style="color:var(--gold)">'+esc(cur.name)+'</b>'}
 function vGameX(lock){
