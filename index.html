@@ -224,7 +224,7 @@ const ORDER=[20,1,18,4,13,6,10,15,2,17,3,19,7,16,8,11,14,9,12,5];
 const PCOL=['#f4b942','#3fa7ff','#ff4fa3','#4cd17a'];
 const THEMES=[['dark','Ciemny (domyślny)'],['classic','Klasyczna tarcza'],['blue','Ciemny niebieski'],['light','Jasny'],['neon','Neon'],['pub','Pub (drewno i złoto)'],['sukno','Sukno (zielony stół)']];
 const S={screen:'home',prev:'home',
-  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,legs:1,sets:1,count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
+  cfg:{mode:'x01',start:501,doubleOut:true,rounds:7,legs:1,sets:1,bull:'match',count:2,names:['','','',''],theme:'dark',voiceMode:'free',speak:true,myName:''},
   game:null,hist:[],session:[],modal:null,statMode:'game',statPlayer:null,lastMsg:'',segInfo:null,
   say:null,match:null,rank:[],online:null,room:null,micOn:false,heard:'',txt:'',err:'',fbText:''};
 const LS={get(k){try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
@@ -248,7 +248,7 @@ function commit(){
 function handleSay(){
   const n=S.say?S.say.n:0;
   if(lastSay===null){lastSay=n;return}
-  if(n!==lastSay){lastSay=n;if(!S.online||S.say.p===S.online.me)speak(S.say.txt)}
+  if(n!==lastSay){lastSay=n;if(!S.online||S.say.p===S.online.me||(S.say.p===-1&&S.online.me===0))speak(S.say.txt)}
 }
 function setSay(p,txt){S.say={n:(S.say?S.say.n:0)+1,p,txt}}
 
@@ -262,16 +262,33 @@ function newGame(keepPlayers,namesOverride,nextLeg){
   const st=keepPlayers&&S.game?S.game:null;
   const startIdx=st?(st.startIdx+1)%names.length:0;
   const keep=keepPlayers&&!namesOverride;
-  if(!nextLeg||!S.match)S.match={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),toWin:keep?prevToWin:(c.legs||1),setsToWin:keep?prevSets:(c.sets||1),wins:{},sets:{},set:1,legInSet:0,over:false,winner:null,leg:0};
+  if(!nextLeg||!S.match)S.match={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),toWin:keep?prevToWin:(c.legs||1),setsToWin:keep?prevSets:(c.sets||1),bullMode:keep&&S.match?(S.match.bullMode||'match'):(c.bull||'match'),wins:{},sets:{},set:1,legInSet:0,over:false,winner:null,leg:0};
   if(S.match.newSet){S.match.wins={};S.match.set++;S.match.legInSet=0;S.match.newSet=false}
   S.match.leg++;S.match.legInSet=(S.match.legInSet||0)+1;delete S.match.prev;
   S.game={mid:S.match.id,type,start:st?st.start:c.start,doubleOut:st?st.doubleOut:c.doubleOut,rounds:st?st.rounds:c.rounds,round:1,
     startIdx,cur:startIdx,mod:1,turn:[],winner:null,tie:false,shanghai:false,
     players:names.map(n=>({name:n,score:type==='sh'?0:(st?st.start:c.start),turns:[]}))};
   S.hist=[];S.lastMsg='';S.modal=null;S.screen='game';S.statPlayer=null;S.segInfo=null;S.saved=null;
+  const bm=S.match.bullMode||'match';
+  if(names.length>1&&(bm==='leg'||(bm==='match'&&S.match.leg===1))){S.game.bullPending=true;S.modal='bull';setSay(-1,'Rzut na bulla. Kto był bliżej?')}
   commit();
 }
-function canThrow(){return S.game&&S.game.winner==null&&(!S.online||S.game.cur===S.online.me)}
+/* rzut na bulla: kto bliżej środka, ten zaczyna leg (kolejne legi – na zmianę) */
+function chooseBull(i){
+  const g=S.game;if(!g||!g.bullPending)return;
+  g.bullPending=false;g.startIdx=i;g.cur=i;S.modal=null;
+  S.lastMsg='🎯 Bull: zaczyna '+esc(g.players[i].name);
+  setSay(-1,'Zaczyna '+g.players[i].name);commit();render();
+}
+function vBull(){
+  const g=S.game;
+  return`<div class="modal"><div class="box"><div class="trophy">🎯</div><h2 style="margin:6px 0">Rzut na bulla</h2>
+  <div class="mut">Każdy rzuca jedną lotką w środek tarczy.<br>Kto był <b style="color:var(--txt)">najbliżej bulla</b>? Ten zaczyna ${S.match&&S.match.leg>1?'tego lega':'pierwszego lega'}.</div>
+  <div style="display:grid;gap:8px;margin-top:14px">${g.players.map((p,i)=>`<button class="btn" style="font-size:18px;padding:14px;border:2px solid ${PCOL[i]}" data-act="bullpick" data-v="${i}"><span class="dot" style="background:${PCOL[i]}"></span>${esc(p.name)}</button>`).join('')}</div>
+  <div class="row" style="margin-top:10px"><button class="btn sm" style="flex:1" data-act="bullrand">🎲 Losuj</button><button class="btn sm" style="flex:1" data-act="bullpick" data-v="${g.startIdx}">Pomiń</button></div>
+  <div class="note" style="margin-top:10px">Możesz też powiedzieć 🎤 imię, np. „${esc(g.players[0].name)}”.</div></div></div>`;
+}
+function canThrow(){return S.game&&S.game.winner==null&&!S.game.bullPending&&(!S.online||S.game.cur===S.online.me)}
 function turnSum(){return S.game.turn.reduce((a,d)=>a+d.v,0)}
 function snap(){S.hist.push(JSON.stringify({g:S.game,last:S.lastMsg}));if(S.hist.length>80)S.hist.shift()}
 function finish(){
@@ -455,6 +472,8 @@ function handleText(t,typed){
   if(S.screen==='game'&&S.game&&/\b(dalej|nastepny|koniec tury)\b/.test(nt)&&!parse(t).length){S.heard='Słyszę: „'+esc(t.trim())+'” → reszta lotek to pudła';skip();return}
   if(!typed&&S.cfg.voiceMode==='cmd'){const n=norm(t),i=n.indexOf('wynik');if(i<0)return;t=n.slice(i+5)}
   if(S.screen!=='game'||!S.game){return}
+  if(S.game.bullPending){const nt2=norm(t);const i=S.game.players.findIndex(p=>{const n=norm(p.name).trim();return n&&nt2.includes(n)});
+    S.heard='Słyszę: „'+esc(t.trim())+'”'+(i<0?' – powiedz imię gracza, który był najbliżej bulla':'');if(i>=0)chooseBull(i);else render();return}
   const d=parse(t);
   S.heard='Słyszę: „'+esc(t.trim())+'”'+(d.length?' → '+d.map(x=>x.b===0?'Pudło':x.b===25?(x.m===2?'Bull':'25'):(x.m===3?'T':x.m===2?'D':'')+x.b).join(' · '):' – nie rozumiem, powtórz');
   if(!d.length){render();return}
@@ -584,12 +603,12 @@ function listen(){
     if(S.online.me!==0&&S.room.cfg)Object.assign(S.cfg,S.room.cfg);S.hist=st.hist||[];S.session=st.session||[];S.lastMsg=st.last||'';S.say=st.say;
     if(S.room.cfg)Object.assign(S.cfg,{mode:S.room.cfg.mode});
     if(S.match&&S.match.over)recordRank();
-    if(S.room.phase==='game'&&S.game){if(S.screen==='lobby'||S.screen==='online')S.screen='game';S.modal=S.game.winner!=null&&S.screen==='game'?(S.match&&!S.match.over?'leg':'win'):(S.modal==='win'||S.modal==='leg'?null:S.modal)}
+    if(S.room.phase==='game'&&S.game){if(S.screen==='lobby'||S.screen==='online')S.screen='game';S.modal=S.game.winner!=null&&S.screen==='game'?(S.match&&!S.match.over?'leg':'win'):(S.modal==='win'||S.modal==='leg'||S.modal==='bull'?null:S.modal)}
     else if(S.room.phase==='lobby'&&S.screen!=='opts')S.screen='lobby';
     handleSay();render();
   });
 }
-function roomCfg(){return{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds,legs:S.cfg.legs||1,sets:S.cfg.sets||1}}
+function roomCfg(){return{mode:S.cfg.mode,start:S.cfg.start,doubleOut:S.cfg.doubleOut,rounds:S.cfg.rounds,legs:S.cfg.legs||1,sets:S.cfg.sets||1,bull:S.cfg.bull||'match'}}
 function syncLobby(){if(S.screen==='lobby'&&S.online&&S.online.me===0&&S.room){S.room.cfg=roomCfg();pushRoom()}}
 function startOnline(){
   Object.assign(S.cfg,S.room.cfg);S.room.phase='game';newGame(false,S.room.names.slice());
@@ -680,6 +699,8 @@ function matchSettings(c){
     <div class="chips">${[7,10,20].map(n=>`<button class="chip ${c.rounds===n?'on':''}" data-act="rounds" data-v="${n}">${n} (1–${n})</button>`).join('')}</div>
     <div class="note" style="margin-top:10px">Runda 1 – rzucacie w 1, runda 2 – w 2 itd. Liczą się tylko trafienia w cel. <b style="color:var(--txt)">Szanghaj</b> (single + double + triple celu w jednej turze) = natychmiastowa wygrana.</div>`
     :`<div class="toggle" data-act="dout" style="margin-top:0"><div><b>Double Out</b><div class="mut" style="font-size:12px">kończenie na podwójnym lub Bull</div></div><div class="sw ${c.doubleOut?'on':''}"></div></div>`}
+    <label class="lbl">Kto zaczyna leg</label>
+    <div class="chips">${[['match','🎯 Bull przed meczem'],['leg','🎯 Bull przed każdym legiem'],['off','Po kolei']].map(([v,l])=>`<button class="chip ${(c.bull||'match')===v?'on':''}" data-act="bullmode" data-v="${v}">${l}</button>`).join('')}</div>
     <label class="lbl">Sety</label>
     <div class="chips">${[1,2,3,4,5].map(n=>`<button class="chip ${(c.sets||1)===n?'on':''}" data-act="sets" data-v="${n}">${n===1?'bez setów':n}</button>`).join('')}</div>
     <label class="lbl">Legi ${(c.sets||1)>1?'w secie':''}</label>
@@ -729,7 +750,7 @@ function vOnline(){
   <div class="card"><div class="row"><input class="nick" id="joincode" maxlength="5" placeholder="KOD" style="text-transform:uppercase;margin:0;flex:1;font-family:Oswald;font-size:22px;letter-spacing:4px"><button class="btn alt" style="padding:14px 18px" data-act="join">Dołącz</button></div></div>
   <div class="err">${S.err||''}</div>`;
 }
-function cfgText(c){return(c.mode==='sh'?'Szanghaj · '+c.rounds+' rund':c.start+' · '+(c.doubleOut?'Double Out':'Single Out'))+((c.sets||1)>1?' · do '+c.sets+' '+plSet(c.sets)+', set do '+(c.legs||1)+' '+plLeg(c.legs||1):(c.legs||1)>1?' · do '+c.legs+' wygranych legów':'')}
+function cfgText(c){return((c.bull||'match')!=='off'?'🎯 ':'')+(c.mode==='sh'?'Szanghaj · '+c.rounds+' rund':c.start+' · '+(c.doubleOut?'Double Out':'Single Out'))+((c.sets||1)>1?' · do '+c.sets+' '+plSet(c.sets)+', set do '+(c.legs||1)+' '+plLeg(c.legs||1):(c.legs||1)>1?' · do '+c.legs+' wygranych legów':'')}
 function vLobby(){
   const r=S.room,host=S.online.me===0;
   return appBar('🌐 Pokój','',`<button class="btn sm" data-act="leave">Wyjdź</button>`)+
@@ -789,7 +810,7 @@ function vGame(){
   return`<div class="gs">`+(isSh(g)?vGameSh(lock):vGameX(lock))+
   `<div class="vrow"><button class="micb ${S.micOn?'on':''}" data-act="mic" aria-label="Mikrofon">${S.micOn?'🎙':'🎤'}</button><input class="txt" id="txt" data-act2="txt" placeholder="${S.micOn?'Słucham… mów rzuty':'mów 🎤 albo wpisz: t20 20 d16'}" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
    <div class="heard1">${S.heard||''}</div></div>`+
-  (S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'');
+  (S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'')+(S.game.bullPending&&S.modal!=='menu'?vBull():'');
 }
 function topBar(tag){return`<div class="appbar"><button class="ib" data-act="menu" aria-label="Menu">☰</button><span class="tag" style="flex:1">${tag}</span><button class="ib" data-act="stats" aria-label="Statystyki">📊</button></div>
     ${S.online?`<div class="info">Pokój ${S.online.code} · grasz jako <b>${esc(S.room.names[S.online.me]||'')}</b>${testDB?' · 🧪 test':''}</div>`:''}`}
@@ -936,7 +957,7 @@ function vStats(){
   return h;
 }
 const TUT=[
- ['🎯','Witaj w Darts!','Na starcie wybierasz <b>grę</b> (501, 301, 701, Szanghaj), <b>sety i legi</b>, a potem jak gracie: <b>🌐 online</b> – każdy na swoim telefonie, albo <b>📱 na jednym telefonie</b>. Na dole masz Statystyki, Ranking i Opcje.'],
+ ['🎯','Witaj w Darts!','Na starcie wybierasz <b>grę</b> (501, 301, 701, Szanghaj), <b>sety i legi</b> oraz czy zaczynacie od <b>rzutu na bulla</b> (kto bliżej, ten zaczyna), a potem jak gracie: <b>🌐 online</b> – każdy na swoim telefonie, albo <b>📱 na jednym telefonie</b>. Na dole masz Statystyki, Ranking i Opcje.'],
  ['👆','Wpisywanie przyciskami','Najpierw <b>SINGLE / DOUBLE / TRIPLE</b>, potem liczba. Np. TRIPLE → 20 = <b>T20</b>. Po każdej lotce wraca na SINGLE. Jest też 25, BULL i PUDŁO.'],
  ['🎤','Mówienie rzutów','Dotknij <b>🎤</b> (na dole, obok pola do wpisywania) i powiedz trzy rzuty, np. <i>„triple dwadzieścia, dwadzieścia, zero”</i>. Apka przeczyta <b>„Razem 80. Teraz Marek”</b> i sama przejdzie do następnego gracza – on od razu mówi swoje.'],
  ['↶','Pomyłka? Powiedz „cofnij”','Powiedz <b>„cofnij”</b> (albo „popraw”) – cała ostatnia tura wraca i podajesz ją jeszcze raz. Przycisk <b>↶ COFNIJ</b> cofa jedną lotkę. „<b>Dalej</b>” = reszta lotek to pudła.'],
@@ -987,6 +1008,9 @@ document.addEventListener('click',e=>{
     case'start':S.cfg.start=+v;saveCfg();syncLobby();break;
     case'rounds':S.cfg.rounds=+v;saveCfg();syncLobby();break;
     case'legs':S.cfg.legs=+v;saveCfg();syncLobby();break;
+    case'bullmode':S.cfg.bull=v;saveCfg();syncLobby();break;
+    case'bullpick':chooseBull(+v);return;
+    case'bullrand':chooseBull(Math.floor(Math.random()*S.game.players.length));return;
     case'sets':S.cfg.sets=+v;saveCfg();syncLobby();break;
     case'nextleg':newGame(true,null,true);break;
     case'clearrank':S.rank=[];LS.set('darts_rank',[]);break;
