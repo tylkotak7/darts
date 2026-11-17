@@ -161,8 +161,10 @@ svg.board{width:100%;height:auto;display:block}
 .note{font-size:13px;color:var(--mut);line-height:1.5}
 .err{color:var(--red);font-size:14px;margin-top:8px;min-height:18px}
 /* ekran gry – wszystko na jednym ekranie, bez przewijania */
-body.ingame #app{padding-bottom:0}
-.gs{display:flex;flex-direction:column;height:100vh;height:100dvh;gap:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+body.ingame #app{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.vbox{padding:14px 0 6px}
+.micib.on{background:var(--red);animation:pulse 1.4s infinite}
+.gs{display:flex;flex-direction:column;height:100vh;height:100svh;gap:6px;padding-bottom:8px}
 .gs>*{flex:0 0 auto}
 .gs .appbar{margin:0 -12px;padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:4px}
 .gs .ib{width:38px;height:38px;flex-basis:38px;font-size:17px}
@@ -180,13 +182,13 @@ body.ingame #app{padding-bottom:0}
 .gs .tsum{font-size:24px;min-width:48px}
 .gs .hint{margin-top:4px;font-size:12px;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gs .lt{font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-.kp{flex:1 1 auto;min-height:190px;display:flex;flex-direction:column;gap:6px}
+.kp{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:6px;overflow:hidden}
 .kp .mods{margin:0;gap:6px;flex:0 0 auto}
 .kp .mod{padding:8px 0;font-size:16px}
-.kp .pad{flex:1;grid-template-rows:repeat(5,1fr);gap:6px}
-.kp .k{height:auto;min-height:36px;font-size:21px}
+.kp .pad{flex:1;min-height:0;grid-template-rows:repeat(5,minmax(0,1fr));gap:6px}
+.kp .k{height:auto;min-height:0;font-size:21px}
 .kp .k.sp{font-size:14px}
-.kp .shpad{flex:1;grid-template-rows:2fr 1fr;gap:6px}
+.kp .shpad{flex:1;min-height:0;grid-template-rows:minmax(0,2fr) minmax(0,1fr);gap:6px}
 .kp .shpad .k{height:auto;font-size:28px}
 .kp .shpad .k.sp{font-size:15px}
 .tgt{display:flex;align-items:baseline;justify-content:center;gap:10px}
@@ -808,11 +810,11 @@ function cards(g,showFn,metaFn){
 function vGame(){
   const g=S.game;const lock=!canThrow()&&g.winner==null;
   return`<div class="gs">`+(isSh(g)?vGameSh(lock):vGameX(lock))+
-  `<div class="vrow"><button class="micb ${S.micOn?'on':''}" data-act="mic" aria-label="Mikrofon">${S.micOn?'🎙':'🎤'}</button><input class="txt" id="txt" data-act2="txt" placeholder="${S.micOn?'Słucham… mów rzuty':'mów 🎤 albo wpisz: t20 20 d16'}" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
-   <div class="heard1">${S.heard||''}</div></div>`+
+  `</div><div class="vbox"><div class="mut" style="font-size:12px;margin:0 2px 6px">⬇ Głos i wpisywanie</div><div class="vrow"><button class="micb ${S.micOn?'on':''}" data-act="mic" aria-label="Mikrofon">${S.micOn?'🎙':'🎤'}</button><input class="txt" id="txt" data-act2="txt" placeholder="${S.micOn?'Słucham… mów rzuty':'albo wpisz: t20 20 d16'}" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
+   <div class="heard1" style="white-space:normal">${S.heard||''}</div></div>`+
   (S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'')+(S.game.bullPending&&S.modal!=='menu'?vBull():'');
 }
-function topBar(tag){return`<div class="appbar"><button class="ib" data-act="menu" aria-label="Menu">☰</button><span class="tag" style="flex:1">${tag}</span><button class="ib" data-act="stats" aria-label="Statystyki">📊</button></div>
+function topBar(tag){return`<div class="appbar"><button class="ib" data-act="menu" aria-label="Menu">☰</button><span class="tag" style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tag}</span><button class="ib micib ${S.micOn?'on':''}" data-act="mic" aria-label="Mikrofon">${S.micOn?'🎙':'🎤'}</button><button class="ib" data-act="stats" aria-label="Statystyki">📊</button></div>
     ${S.online?`<div class="info">Pokój ${S.online.code} · grasz jako <b>${esc(S.room.names[S.online.me]||'')}</b>${testDB?' · 🧪 test':''}</div>`:''}`}
 const plSet=n=>n===1?'set':n<5?'sety':'setów';
 const plLeg=n=>n===1?'leg':n<5?'legi':'legów';
