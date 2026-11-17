@@ -117,7 +117,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);border-col
 .locked{opacity:.35;pointer-events:none}
 .flash{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);font-family:Oswald;font-size:56px;color:var(--red);text-shadow:0 4px 24px #000;pointer-events:none;opacity:0;transition:opacity .2s;z-index:20;white-space:nowrap}
 .flash.show{opacity:1}
-.said{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--gold);color:#111;font-weight:700;font-size:18px;padding:12px 20px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none;z-index:25;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+.said{position:fixed;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translateX(-50%);background:var(--gold);color:#111;font-weight:700;font-size:18px;padding:12px 20px;border-radius:999px;box-shadow:0 6px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .25s;pointer-events:none;z-index:25;white-space:nowrap;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
 .said.show{opacity:1}
 .lastturn{background:var(--card);border-left:4px solid var(--gold);border-radius:12px;padding:8px 12px;margin-bottom:10px;font-size:14px}
 .last{font-size:12px;color:var(--mut);text-align:center;margin:8px 0 0}
@@ -160,6 +160,44 @@ svg.board{width:100%;height:auto;display:block}
 .steps li{margin-bottom:6px}
 .note{font-size:13px;color:var(--mut);line-height:1.5}
 .err{color:var(--red);font-size:14px;margin-top:8px;min-height:18px}
+/* ekran gry – wszystko na jednym ekranie, bez przewijania */
+body.ingame #app{padding-bottom:0}
+.gs{display:flex;flex-direction:column;height:100vh;height:100dvh;gap:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom))}
+.gs>*{flex:0 0 auto}
+.gs .appbar{margin:0 -12px;padding-top:calc(6px + env(safe-area-inset-top));padding-bottom:4px}
+.gs .ib{width:38px;height:38px;flex-basis:38px;font-size:17px}
+.gs .tag{font-size:16px}
+.gs .info{margin:0;font-size:11px}
+.gs .players{margin:0;gap:6px}
+.gs .pl{padding:5px 10px 6px;border-radius:12px}
+.gs .pl .nm{font-size:13px}
+.gs .pl .sc{font-size:30px;line-height:1.05}
+.gs .pl .meta{font-size:10px}
+.gs .pl .wins{top:5px;font-size:10px}
+.gs .turnbar{margin:0;padding:6px 8px}
+.gs .slots{gap:6px}
+.gs .slot{height:36px;font-size:19px;border-radius:9px}
+.gs .tsum{font-size:24px;min-width:48px}
+.gs .hint{margin-top:4px;font-size:12px;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs .lt{font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.kp{flex:1 1 auto;min-height:190px;display:flex;flex-direction:column;gap:6px}
+.kp .mods{margin:0;gap:6px;flex:0 0 auto}
+.kp .mod{padding:8px 0;font-size:16px}
+.kp .pad{flex:1;grid-template-rows:repeat(5,1fr);gap:6px}
+.kp .k{height:auto;min-height:36px;font-size:21px}
+.kp .k.sp{font-size:14px}
+.kp .shpad{flex:1;grid-template-rows:2fr 1fr;gap:6px}
+.kp .shpad .k{height:auto;font-size:28px}
+.kp .shpad .k.sp{font-size:15px}
+.tgt{display:flex;align-items:baseline;justify-content:center;gap:10px}
+.tgt .tb{font-family:Oswald;font-size:38px;color:var(--gold);line-height:1}
+.vrow{display:flex;gap:6px;align-items:center}
+.micb{width:54px;height:46px;flex:0 0 54px;border-radius:12px;background:var(--sp);font-size:22px;color:#fff}
+.micb.on{background:var(--red);animation:pulse 1.4s infinite}
+.vrow input.txt{padding:0 12px;font-size:15px;height:46px;min-width:0;flex:1}
+.vrow .btn{height:46px;padding:0 16px}
+.heard1{font-size:11.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:14px;margin-top:-2px}
+@media (max-height:640px){.gs .pl .meta{display:none}.gs .lt{display:none}.kp .mod{padding:6px 0}}
 </style>
 </head>
 <body data-t="dark">
@@ -468,7 +506,7 @@ function speak(txt){
   u.onend=done;u.onerror=done;spkTimer=setTimeout(done,7000);
   try{ss.cancel();ss.resume();setTimeout(()=>ss.speak(u),150)}catch(e){done()}
 }
-function showSaid(txt){const f=$('said');if(!f)return;f.textContent='🔊 '+txt;f.classList.add('show');clearTimeout(f._t);f._t=setTimeout(()=>f.classList.remove('show'),3500)}
+function showSaid(txt){const f=$('said');if(!f)return;const tb=document.querySelector('.gs .turnbar');f.style.top=tb?(tb.getBoundingClientRect().top+tb.offsetHeight/2-24)+'px':'';f.textContent='🔊 '+txt;f.classList.add('show');clearTimeout(f._t);f._t=setTimeout(()=>f.classList.remove('show'),3500)}
 
 /* ---------- podpowiedź zakończenia (501) ---------- */
 const ALL=[];for(let n=20;n>=1;n--)ALL.push({k:'T'+n,v:n*3});
@@ -748,10 +786,9 @@ function cards(g,showFn,metaFn){
 }
 function vGame(){
   const g=S.game;const lock=!canThrow()&&g.winner==null;
-  return(isSh(g)?vGameSh(lock):vGameX(lock))+
-  `<div class="voice"><button class="mic ${S.micOn?'on':''}" data-act="mic">${S.micOn?'🎙 Słucham… (dotknij, by wyłączyć)':'🎤 Mów rzuty'}</button>
-   <div class="row" style="margin-top:8px"><input class="txt" id="txt" data-act2="txt" placeholder="albo wpisz: t20 20 d16" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
-   <div class="heard">${S.heard||''}</div></div>`+
+  return`<div class="gs">`+(isSh(g)?vGameSh(lock):vGameX(lock))+
+  `<div class="vrow"><button class="micb ${S.micOn?'on':''}" data-act="mic" aria-label="Mikrofon">${S.micOn?'🎙':'🎤'}</button><input class="txt" id="txt" data-act2="txt" placeholder="${S.micOn?'Słucham… mów rzuty':'mów 🎤 albo wpisz: t20 20 d16'}" value="${esc(S.txt)}" autocomplete="off"><button class="btn alt" data-act="txtok">OK</button></div>
+   <div class="heard1">${S.heard||''}</div></div>`+
   (S.modal==='win'?vWin():'')+(S.modal==='leg'?vLeg():'')+(S.modal==='menu'?vMenu():'');
 }
 function topBar(tag){return`<div class="appbar"><button class="ib" data-act="menu" aria-label="Menu">☰</button><span class="tag" style="flex:1">${tag}</span><button class="ib" data-act="stats" aria-label="Statystyki">📊</button></div>
@@ -761,7 +798,7 @@ const plLeg=n=>n===1?'leg':n<5?'legi':'legów';
 function legTag(){const m=S.match;if(!m)return'';if((m.setsToWin||1)>1)return` · set ${m.set} · leg ${m.legInSet}`;return m.toWin>1?` · leg ${m.leg} (do ${m.toWin})`:''}
 function slotsHtml(g,sum,hint){
   const slots=[0,1,2].map(i=>{const d=g.turn[i];return`<div class="slot ${d?'f':''}">${d?lab(d.k):'–'}</div>`}).join('');
-  return(S.lastMsg?`<div class="lastturn">↩ ${S.lastMsg}</div>`:'')+`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div></div>`;
+  return`<div class="turnbar"><div class="slots">${slots}<div class="tsum">${sum}</div></div><div class="hint">${hint}</div>${S.lastMsg?`<div class="lt">↩ ${S.lastMsg}</div>`:''}</div>`;
 }
 function whoHint(cur,lock){return lock?'Rzuca <b style="color:var(--gold)">'+esc(cur.name)+'</b> – czekaj na swoją kolej':'Rzuca <b style="color:var(--gold)">'+esc(cur.name)+'</b>'}
 function vGameX(lock){
@@ -772,7 +809,7 @@ function vGameX(lock){
   return topBar(`${g.start} · ${g.doubleOut?'D.Out':'S.Out'}${legTag()}`)+
   cards(g,(p,i)=>i===g.cur?p.score-sum:p.score,(p,i)=>{const st=stats([g],p.name);return`śr. ${st.avg.toFixed(1)} · lotki ${st.darts+(i===g.cur?g.turn.length:0)}`})+
   slotsHtml(g,sum,hint)+
-  `<div class="${lock?'locked':''}"><div class="mods">
+  `<div class="kp ${lock?'locked':''}"><div class="mods">
     <button class="mod m1 ${m===1?'on':''}" data-act="mod" data-v="1">SINGLE</button>
     <button class="mod m2 ${m===2?'on':''}" data-act="mod" data-v="2">DOUBLE</button>
     <button class="mod m3 ${m===3?'on':''}" data-act="mod" data-v="3">TRIPLE</button></div>
@@ -791,16 +828,16 @@ function vGameSh(lock){
   const hint=shPossible&&g.turn.length?`Szanghaj wciąż możliwy! Brakuje: <b>${need.map(x=>x==='S'?n:x+n).join(' + ')}</b>`:whoHint(cur,lock);
   return topBar(`Szanghaj · runda ${n}/${g.rounds}${legTag()}`)+
   cards(g,(p,i)=>p.score+(i===g.cur?sum:0),p=>{const st=stats([g],p.name);return`trafienia ${st.hitPct}% · lotki ${st.darts}`})+
-  `<div class="target"><div class="mut" style="font-size:12px;letter-spacing:2px">CEL</div><div class="big">${n}</div></div>`+
+  `<div class="tgt"><span class="mut" style="font-size:12px;letter-spacing:2px">CEL</span><span class="tb">${n}</span></div>`+
   slotsHtml(g,sum,hint)+
-  `<div class="shpad ${lock?'locked':''}">
+  `<div class="kp sh ${lock?'locked':''}"><div class="shpad">
     <button class="k" data-act="sh" data-v="1">${n}</button>
     <button class="k d" data-act="sh" data-v="2">D${n}</button>
     <button class="k t" data-act="sh" data-v="3">T${n}</button>
     <button class="k miss sp" data-act="sh" data-v="0">PUDŁO</button>
     <button class="k undo sp" data-act="undo" ${S.hist.length?'':'disabled'}>↶ COFNIJ</button>
     <button class="k sp" data-act="skip" ${g.turn.length?'':'disabled'}>DALEJ ⏭</button>
-  </div>`;
+  </div></div>`;
 }
 function vLeg(){
   const g=S.game,m=S.match,hs=(m.setsToWin||1)>1,who=m.setWon?`Set dla ${esc(m.setWon)}!`:g.tie?'Remis w legu':`Leg dla ${esc(g.players[g.winner].name)}!`;
@@ -901,7 +938,7 @@ function vStats(){
 const TUT=[
  ['🎯','Witaj w Darts!','Na starcie wybierasz <b>grę</b> (501, 301, 701, Szanghaj), <b>sety i legi</b>, a potem jak gracie: <b>🌐 online</b> – każdy na swoim telefonie, albo <b>📱 na jednym telefonie</b>. Na dole masz Statystyki, Ranking i Opcje.'],
  ['👆','Wpisywanie przyciskami','Najpierw <b>SINGLE / DOUBLE / TRIPLE</b>, potem liczba. Np. TRIPLE → 20 = <b>T20</b>. Po każdej lotce wraca na SINGLE. Jest też 25, BULL i PUDŁO.'],
- ['🎤','Mówienie rzutów','Dotknij <b>🎤 Mów rzuty</b> i powiedz trzy rzuty, np. <i>„triple dwadzieścia, dwadzieścia, zero”</i>. Apka przeczyta <b>„Razem 80. Teraz Marek”</b> i sama przejdzie do następnego gracza – on od razu mówi swoje.'],
+ ['🎤','Mówienie rzutów','Dotknij <b>🎤</b> (na dole, obok pola do wpisywania) i powiedz trzy rzuty, np. <i>„triple dwadzieścia, dwadzieścia, zero”</i>. Apka przeczyta <b>„Razem 80. Teraz Marek”</b> i sama przejdzie do następnego gracza – on od razu mówi swoje.'],
  ['↶','Pomyłka? Powiedz „cofnij”','Powiedz <b>„cofnij”</b> (albo „popraw”) – cała ostatnia tura wraca i podajesz ją jeszcze raz. Przycisk <b>↶ COFNIJ</b> cofa jedną lotkę. „<b>Dalej</b>” = reszta lotek to pudła.'],
  ['📊','Statystyki','Pod 📊 zobaczysz tarczę z trafieniami – każdy gracz swoim kolorem – oraz porównanie: ile T20, T19, zwykłych, średnie, 180-tki. Jest też <b>ranking Top 5</b> najlepszych średnich. Przed grą ustawisz <b>sety i legi</b> – także w grze przez internet (gospodarz w pokoju). Wygląd i głos zmienisz w ⚙ Opcjach.']];
 function vTut(){
@@ -918,7 +955,7 @@ function render(){
   const sc=S.screen;
   const html=sc==='game'&&S.game?vGame():sc==='stats'?vStats():sc==='opts'?vOpts():sc==='online'?vOnline():sc==='lobby'&&S.room?vLobby():sc==='local'?vLocal():sc==='rank'?vRankScreen():vHome();
   const nav=(sc==='home'||sc==='rank'||(sc==='stats'&&!S.game)||(sc==='opts'&&S.prev!=='game'&&S.prev!=='lobby'))&&!S.online;
-  document.body.classList.toggle('hasnav',nav);
+  document.body.classList.toggle('hasnav',nav);document.body.classList.toggle('ingame',sc==='game'&&!!S.game);
   const anim=S._ls!==sc;S._ls=sc;
   a.innerHTML=`<div class="screen${anim?' anim':''}">${html}</div>`+(nav?vNav():'');
   if(anim)window.scrollTo(0,0);
